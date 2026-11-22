@@ -8,6 +8,7 @@ import {
 } from "./state.js";
 import { STEM_NAMES, syncStemNamesFromAPI } from "./constants.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
+import { initTranscribe, openTranscribeDialog } from "./transcribe.js";
 import { renderEmptyShell, buildStripStems, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, openStemsInReaper, downloadRegionMix, regionDragPayload, stemRegionDragPayload, prewarmRegionMix, mixTransposeBlocked } from "./player.js";
 import { transposeExportFromHealth } from "./transposeExport.js";
 import { wireJobForm, showError } from "./job.js";
@@ -616,7 +617,11 @@ function wireFooterControls() {
   }
   refreshOpenReaperRow();
   const mixDescEl  = itemMix?.querySelector(".chip-item-desc");
-  const allItems = () => [itemMix, itemStems, itemReaper, itemOpenReaper, itemRegion];
+  // Transcribe to Notes opens a dialog of its own (static/js/transcribe.js).
+  // It stays hidden where transcription cannot run; initTranscribe shows it.
+  const itemTranscribe = document.getElementById("t-export-transcribe");
+  initTranscribe().catch((e) => console.warn("[export] transcription setup failed:", e));
+  const allItems = () => [itemMix, itemStems, itemReaper, itemOpenReaper, itemTranscribe, itemRegion];
   // Only the rows actually visible in the current format mode (MP4 hides the
   // audio-only Stems/REAPER/Region rows).
   const actionItems = () => allItems().filter((it) => it && it.offsetParent !== null);
@@ -890,6 +895,14 @@ function wireFooterControls() {
     e.stopPropagation();
     if (itemOpenReaper.getAttribute("aria-disabled") === "true") return;
     runExport((onStart) => openStemsInReaper(format, onStart), t("export.noStems"));
+  });
+
+  // Not an export of audio: it opens the transcription dialog for this song.
+  itemTranscribe?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (itemTranscribe.getAttribute("aria-disabled") === "true") return;
+    closePanel();
+    openTranscribeDialog();
   });
 
   // Keyboard: ↓ opens/moves into the menu, ↑/↓ cycle rows, Esc closes + restores focus.

@@ -158,11 +158,13 @@ In Performance mode:
 - **Sections** such as verse, chorus and solo, detected for you (experimental) or marked by hand.
 - **Synced lyrics** from LRCLIB, with timing you can fix by tapping along. With an NVIDIA GPU, or an AMD one on Linux, StemDeck can also write them down from the vocals when none are found.
 - **Song and artist details** from MusicBrainz, Wikipedia and, optionally, Discogs.
+- **The notes of each part** (experimental), transcribed on demand: a pitch tracker for vocals and bass, a piano model for piano, and a multi-instrument model for guitar, drums and the rest. Not on Intel Macs.
 
 ### <img src="imgs/readme/export.svg" width="22" align="top" alt=""> Keep and share
 
 - **Export** what you hear as one file, every part as a `.zip`, only the looped part, or, when the song came with a video, a video with the original picture. Add the click or a count-in if you like.
 - **Drag a stem or a loop** from the desktop app straight into your other music software.
+- **MIDI and sheet music** of the transcribed parts: a MIDI file as played, a MIDI file snapped to the song's own beats that stays in time with the audio in a DAW, or a MusicXML score for a notation program.
 - **A library** with colored folders, tags you can search by (`#tag`), favorites, and a Trash that only deletes when you empty it.
 
 ### <img src="imgs/readme/eye.svg" width="22" align="top" alt=""> It explains itself

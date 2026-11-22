@@ -1208,6 +1208,15 @@
                     <span class="chip-item-desc" data-i18n="export.openReaperDesc">Save the stems as a REAPER project and open it</span>
                   </span>
                 </button>
+                <button class="chip-panel-item export-item" id="t-export-transcribe" type="button" role="menuitem" hidden>
+                  <span class="chip-item-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
+                  </span>
+                  <span class="chip-item-text">
+                    <span class="chip-item-title" data-i18n="export.transcribe">Transcribe to Notes</span>
+                    <span class="chip-item-desc" data-i18n="export.transcribeDesc">Turn stems into MIDI or sheet music</span>
+                  </span>
+                </button>
                 <button class="chip-panel-item export-item" id="t-export-region" type="button" role="menuitem" aria-disabled="true">
                   <span class="chip-item-icon" aria-hidden="true">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
@@ -1484,6 +1493,42 @@
         <div class="about-primary-links">
           <a class="about-link about-link-primary" id="failureReport" target="_blank" rel="noopener noreferrer" data-i18n="failure.reportGithub">Report on GitHub</a>
           <a class="about-link about-link-secondary" id="failureReportDiscord" target="_blank" rel="noopener noreferrer" data-i18n="failure.reportDiscord">Report on Discord</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transcribe to notes, opened from the Export menu (static/js/transcribe.js). -->
+    <div class="about-backdrop hidden" id="transcribeDialog" role="dialog" aria-modal="true" aria-labelledby="transcribeTitle">
+      <div class="about-card transcribe-card">
+        <button class="about-close" id="transcribeClose" type="button" aria-label="Close transcription dialog" data-i18n-aria-label="transcribe.closeAria">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <h2 id="transcribeTitle" data-i18n="transcribe.title">Transcribe to notes</h2>
+        <p class="transcribe-hint" data-i18n="transcribe.hint">Each stem is transcribed by the model that suits it. The first run downloads the models (about 700 MB). A song takes from a few minutes to half an hour or more: busy guitar and keyboard parts are the slowest.</p>
+        <div class="transcribe-stems" id="transcribeStems" role="group" aria-labelledby="transcribeTitle"></div>
+        <div class="transcribe-actions">
+          <button class="about-link about-link-primary" id="transcribeStart" type="button" data-i18n="transcribe.start">Transcribe</button>
+          <button class="about-link about-link-secondary" id="transcribeCancel" type="button" data-i18n="transcribe.cancel" hidden>Cancel</button>
+        </div>
+        <p class="transcribe-error" id="transcribeError" role="alert" hidden></p>
+        <div class="transcribe-downloads" id="transcribeDownloads" hidden>
+          <p class="transcribe-warning" id="transcribeWarning" role="status" hidden></p>
+          <label class="transcribe-parts">
+            <span data-i18n="transcribe.resolution">Snap notes to</span>
+            <select id="transcribeParts">
+              <option value="1" data-i18n="transcribe.parts.1">Quarter notes</option>
+              <option value="2" data-i18n="transcribe.parts.2">Eighth notes</option>
+              <option value="3" data-i18n="transcribe.parts.3">Eighth-note triplets</option>
+              <option value="4" data-i18n="transcribe.parts.4" selected>Sixteenth notes</option>
+              <option value="6" data-i18n="transcribe.parts.6">Sixteenth-note triplets</option>
+              <option value="8" data-i18n="transcribe.parts.8">Thirty-second notes</option>
+            </select>
+          </label>
+          <div class="transcribe-links">
+            <a class="about-link about-link-secondary" id="transcribeMidiPlayed" download data-i18n="transcribe.midiPlayed">MIDI, as played</a>
+            <a class="about-link about-link-secondary" id="transcribeMidiQuantised" download data-i18n="transcribe.midiQuantised">MIDI, on the beat grid</a>
+            <a class="about-link about-link-secondary" id="transcribeMusicxml" download data-i18n="transcribe.musicxml">Sheet music (MusicXML)</a>
+          </div>
         </div>
       </div>
     </div>

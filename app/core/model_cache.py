@@ -144,3 +144,22 @@ def vocal_split_artifacts(models_dir: Path, model_file: str) -> list[Path]:
         root / "mdx_model_data.json",
         root / "download_checks.json",
     ]
+
+
+def transcription_artifacts(models_dir: Path, transcriber: str) -> list[Path]:
+    """Where a stem transcriber keeps its weights (app/pipeline/notes_adapters.py):
+    the checkpoint, and the marker that says it was verified against its
+    published hash. CREPE has none: its weights ship inside its package.
+
+    These are not healed with load_or_heal on a failed load. They are hashed
+    before every load instead, so a truncated download is refetched before it
+    can fail, and a good file is never deleted for an unrelated error."""
+    from app.core.config import TRANSCRIBE_MT3_CHECKPOINT, TRANSCRIBE_PIANO_FILE
+
+    if transcriber == "piano":
+        checkpoint = models_dir / "piano-transcription" / TRANSCRIBE_PIANO_FILE
+    elif transcriber == "mt3":
+        checkpoint = models_dir / "yourmt3" / Path(TRANSCRIBE_MT3_CHECKPOINT)
+    else:
+        return []
+    return [checkpoint, checkpoint.with_name(checkpoint.name + ".verified")]
