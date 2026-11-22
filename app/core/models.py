@@ -417,6 +417,13 @@ class Job:
     #  "code": reason code or None, "transcriber": name}. A run that finishes
     # can still hold a stem that failed (its model would not load, say).
     transcription_stems: dict[str, dict[str, Any]] | None = None
+    # Where a running transcription is, for the dialog that watches it:
+    # {"stems": [names in the run], "stem": the one being worked on or None,
+    #  "phase": "starting" | "downloading" | "loading" | "transcribing",
+    #  "percent": 0-100 or None (downloads only), "done": int, "total": int,
+    #  "finished": [names whose result is in]}.
+    # None when no run is in progress. Never saved: it describes a process.
+    transcription_progress: dict[str, Any] | None = None
     # When the user put this job in the Trash, or None if they have not.
     #
     # Server-side on purpose. The Trash used to live only in the browser's
@@ -525,6 +532,9 @@ class Job:
             # A fixed sentence per code, never the worker's own words.
             "transcription_message": transcription_message_for(self.transcription_reason),
             "transcription_stems": self.transcription_stems or {},
+            "transcription_progress": (
+                self.transcription_progress if self.transcription == "running" else None
+            ),
             "trashed_at": self.trashed_at,
             "favorite": self.favorite,
             "created_at": self.created_at,
@@ -602,5 +612,5 @@ class Job:
 _JOB_FIELDS = frozenset(
     f.name
     for f in dataclasses.fields(Job)
-    if f.name not in ("cancel_requested", "stop_requested", "version")
+    if f.name not in ("cancel_requested", "stop_requested", "version", "transcription_progress")
 )

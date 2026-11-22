@@ -73,6 +73,11 @@ def _stem_line(
     )
 
 
+def _progress_line(stem: str, phase: str, percent: int | None = None) -> None:
+    """Tell the parent what is happening to ``stem`` right now."""
+    _emit("@@PROGRESS@@" + json.dumps({"stem": stem, "phase": phase, "percent": percent}))
+
+
 def _code(phase: str, exc: BaseException) -> str:
     """The reason code for a failure. A model that would not download is the
     model, whatever its words; the rest is judged the way the vocal split
@@ -132,6 +137,23 @@ def _load(transcriber, name: str, device: str) -> str:
         _emit(f"{name}: could not load on {device} ({exc}); trying the CPU")
         transcriber.load("cpu")
         return "cpu"
+
+
+def _hook_progress(stem: str) -> None:
+    """Route the adapters' download and load progress to the parent, as
+    progress on ``stem``. A no-op with fake transcribers that never import
+    the adapters' models."""
+    try:
+        from app.pipeline import notes_adapters
+    except Exception:
+        return
+
+    def hook(phase: str, percent: int | None) -> None:
+        _progress_line(stem, phase, percent)
+        if phase == "downloading" and percent == 100:
+            _progress_line(stem, "loading")
+
+    notes_adapters.progress_hook = hook
 
 
 def run(
@@ -201,6 +223,9 @@ def run(
             continue
 
         _emit(f"loading the {name} transcriber for {', '.join(audio_of)}")
+        first = next(iter(audio_of))
+        _progress_line(first, "loading")
+        _hook_progress(first)
         try:
             on = _load(transcriber, name, device)
         except Exception as exc:
@@ -212,6 +237,7 @@ def run(
 
         for stem, audio in audio_of.items():
             _emit(f"transcribing {stem} with {name}")
+            _progress_line(stem, "transcribing")
             try:
                 try:
                     notes = transcriber.transcribe(audio, stem)

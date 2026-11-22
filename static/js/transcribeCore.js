@@ -51,3 +51,22 @@ export function gridWarning(info) {
   if (info.confidence != null && info.confidence < LOW_CONFIDENCE) return "low-confidence";
   return null;
 }
+
+// Where one stem of a running transcription stands: "done" once its result is
+// in, the run's own phase when it is the stem being worked on, else "waiting".
+// A run that is between stems ("starting", "finishing") has no current stem.
+export function stemPhase(name, entry, progress) {
+  if (entry) return "done";
+  if (progress?.stem === name) {
+    return ["downloading", "loading", "transcribing"].includes(progress.phase) ? progress.phase : "transcribing";
+  }
+  return "waiting";
+}
+
+// The overall bar: finished stems, plus half a stem for the one in progress,
+// so the bar moves when a long stem starts and never reaches the end early.
+export function overallValue(done, total, progress) {
+  if (!total) return 0;
+  const working = progress?.stem && done < total ? 0.5 : 0;
+  return Math.min(total, done + working);
+}

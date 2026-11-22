@@ -12,6 +12,7 @@ import { currentJobId } from "./state.js";
 import {
   LOW_CONFIDENCE, REASONS, ROUTES,
   transcribableStems, defaultChoice, downloadQuery, hasNotes, gridWarning,
+  stemPhase, overallValue,
 } from "./transcribeCore.js";
 
 const POLL_MS = 1500;
@@ -25,6 +26,24 @@ let running = false;
 let pollTimer = null;
 // Which stems are ticked. Kept across re-renders while the dialog is open.
 let chosen = null;
+// Stems whose result arrived during the run being watched.
+let runResults = new Set();
+let ticker = null;
+
+// The server says which stems of the run have their result.
+function noteRunResults(state) {
+  runResults = new Set(state?.transcription_progress?.finished || []);
+}
+
+function startTicker() {
+  stopTicker();
+  // The elapsed time beside the stem being transcribed moves once a second.
+  ticker = setInterval(() => { if (running) renderStems(); }, 1000);
+}
+function stopTicker() {
+  if (ticker) clearInterval(ticker);
+  ticker = null;
+}
 
 async function loadConfig() {
   if (config) return config;
@@ -51,6 +70,33 @@ function stemLabel(name) {
 function reasonText(code, fallback) {
   if (code && REASONS.includes(code)) return t(`transcribe.reason.${code}`);
   return fallback || t("transcribe.reason.worker_failed");
+}
+
+// When the client first saw each (stem, phase): the elapsed time shown beside
+// the stem being worked on. Client-side, so a browser on another machine with
+// another clock still counts from when it started watching.
+let phaseSeen = { key: null, at: 0 };
+
+function elapsedText(key) {
+  if (phaseSeen.key !== key) phaseSeen = { key, at: Date.now() };
+  const secs = Math.max(0, Math.floor((Date.now() - phaseSeen.at) / 1000));
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+}
+
+// What a stem's row says while a run is in progress, or null when the run
+// has nothing to say about it (not part of this run, or already finished).
+function runningText(name, entry, progress) {
+  if (!running || !progress || !progress.stems?.includes(name)) return null;
+  const phase = stemPhase(name, entry, progress);
+  if (phase === "done") return null;
+  if (phase === "waiting") return t("transcribe.progress.waiting");
+  if (phase === "downloading") {
+    return progress.percent == null
+      ? t("transcribe.progress.downloading")
+      : t("transcribe.progress.downloadingPercent", { n: progress.percent });
+  }
+  if (phase === "loading") return t("transcribe.progress.loading");
+  return t("transcribe.progress.transcribing", { time: elapsedText(`${name}:transcribing`) });
 }
 
 function statusText(entry) {
@@ -86,16 +132,34 @@ function renderStems() {
     const kind = config?.transcription_routes?.[name];
     route.textContent = ROUTES.includes(kind) ? t(`transcribe.route.${kind}`) : "";
     const status = document.createElement("span");
-    const entry = stemsState[name];
-    status.className = `transcribe-stem-status${entry?.status === "error" ? " is-error" : ""}`;
-    status.dataset.status = entry?.status || "none";
-    status.textContent = statusText(entry);
+    // A stem in this run shows the run's word on it until its result is in:
+    // an older result from an earlier run is about to be replaced.
+    const progress = jobState?.transcription_progress;
+    const inRun = running && progress?.stems?.includes(name);
+    const fresh = inRun ? runResults.has(name) : true;
+    const entry = fresh ? stemsState[name] : null;
+    const live = runningText(name, entry, progress);
+    status.className = `transcribe-stem-status${!live && entry?.status === "error" ? " is-error" : ""}`;
+    status.dataset.status = live ? stemPhase(name, entry, progress) : (entry?.status || "none");
+    status.textContent = live ?? statusText(entry);
     row.append(box, label, route, status);
     els.stems.append(row);
   }
 }
 
+function renderProgress() {
+  const progress = running ? jobState?.transcription_progress : null;
+  els.progress.hidden = !progress;
+  if (!progress) return;
+  const total = progress.total || progress.stems?.length || 0;
+  const done = Math.min(total, runResults.size);
+  els.progressText.textContent = t("transcribe.progress.overall", { done, total });
+  els.progressBar.max = Math.max(1, total);
+  els.progressBar.value = overallValue(done, total, progress);
+}
+
 function renderActions() {
+  renderProgress();
   const stemsState = jobState?.transcription_stems || {};
   els.start.disabled = running || !chosen || chosen.size === 0;
   els.start.textContent = running ? t("transcribe.running") : t("transcribe.start");
@@ -177,7 +241,11 @@ function startPolling() {
     try {
       const state = await fetchJob();
       if (jobId !== forJob || !running) return;
-      jobState = { ...state, transcription: "running" };
+      // The first polls can land before the server has marked the run: keep
+      // the list of stems we asked for until it reports its own.
+      const progress = state.transcription_progress || jobState.transcription_progress;
+      jobState = { ...state, transcription: "running", transcription_progress: progress };
+      noteRunResults(jobState);
       render();
     } catch (e) {
       console.warn("[transcribe] poll failed:", e);
@@ -190,9 +258,16 @@ async function start() {
   const forJob = jobId;
   const names = transcribableStems(jobState, config?.transcription_routes).filter((n) => chosen.has(n));
   running = true;
-  jobState = { ...jobState, transcription: "running", transcription_reason: null };
+  runResults = new Set();
+  jobState = {
+    ...jobState,
+    transcription: "running",
+    transcription_reason: null,
+    transcription_progress: { stems: names, stem: null, phase: "starting", percent: null, done: 0, total: names.length, finished: [] },
+  };
   render();
   startPolling();
+  startTicker();
   let body = null;
   try {
     const res = await fetch(`/api/jobs/${forJob}/transcription`, {
@@ -215,6 +290,7 @@ async function start() {
     body = { ...jobState, transcription: "error", transcription_reason: "worker_failed" };
   }
   stopPolling();
+  stopTicker();
   if (jobId !== forJob) return;
   running = false;
   jobState = body;
@@ -235,6 +311,7 @@ async function cancel() {
 }
 
 function hide() {
+  stopTicker();
   els.dialog.classList.add("hidden");
   // A run keeps going on the server; only the watching stops.
   stopPolling();
@@ -261,6 +338,8 @@ export async function openTranscribeDialog(forJobId = currentJobId) {
   els.dialog.classList.remove("hidden");
   els.close.focus();
   if (running) {
+    noteRunResults(jobState);
+    startTicker();
     // Opened on a run started elsewhere (another window, before a reload):
     // watch it until the song stops saying it is running.
     stopPolling();
@@ -270,9 +349,11 @@ export async function openTranscribeDialog(forJobId = currentJobId) {
         const state = await fetchJob();
         if (jobId !== watched) return stopPolling();
         jobState = state;
+        noteRunResults(state);
         if (state.transcription !== "running") {
           running = false;
           stopPolling();
+          stopTicker();
           await fetchGridInfo();
         }
         render();
@@ -303,6 +384,24 @@ export async function initTranscribe() {
     midiQuantised: document.getElementById("transcribeMidiQuantised"),
     musicxml: document.getElementById("transcribeMusicxml"),
   };
+  // Built here, not in index.html: one row under the buttons, shown only
+  // while a run is in progress.
+  const row = document.createElement("div");
+  row.className = "transcribe-progress";
+  row.id = "transcribeProgress";
+  row.hidden = true;
+  const text = document.createElement("span");
+  text.id = "transcribeProgressText";
+  const bar = document.createElement("progress");
+  bar.id = "transcribeProgressBar";
+  bar.max = 1;
+  bar.value = 0;
+  row.setAttribute("role", "status");
+  row.append(text, bar);
+  els.start.parentElement.after(row);
+  els.progress = row;
+  els.progressText = text;
+  els.progressBar = bar;
   els.close.addEventListener("click", hide);
   dialog.addEventListener("click", (e) => { if (e.target === dialog) hide(); });
   dialog.addEventListener("keydown", (e) => { if (e.code === "Escape") hide(); });

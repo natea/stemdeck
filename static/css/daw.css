@@ -6317,3 +6317,11 @@ html:not(.mode-daw) #master-drawer {
    display: flex, which outranks the hidden attribute on its own. */
 #t-export-transcribe[hidden],
 #t-export-panel.fmt-mp4 #t-export-transcribe { display: none; }
+.transcribe-progress {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--muted); font-family: var(--font-mono);
+}
+.transcribe-progress progress { flex: 1; height: 6px; accent-color: var(--accent, #f4b740); }
+.transcribe-stem-status[data-status="transcribing"],
+.transcribe-stem-status[data-status="loading"],
+.transcribe-stem-status[data-status="downloading"] { color: var(--accent, #f4b740); }
