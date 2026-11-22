@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from app.core.config import AUDIO_TAG_LYRICS_MAX_CHARS, AUDIO_TAG_MAX_CHARS
+from app.core.transcription_outcome import INTERRUPTED as TRANSCRIPTION_INTERRUPTED
+from app.core.transcription_outcome import message_for as transcription_message_for
 from app.core.versions import VERSION_ID_RE, active_of, clean_versions, versions_of
 from app.core.vocal_split_outcome import INTERRUPTED, message_for
 
@@ -401,6 +403,20 @@ class Job:
     # post-hoc action on a "done" job like vocal_split. "error" leaves every
     # stem the song had as it was.
     stem_fill: Literal["none", "running", "done", "error"] = "none"
+    # On-demand stem transcription (POST .../transcription), a post-hoc action
+    # on a "done" job like vocal_split: stems to notes, kept under
+    # stems/transcription/. "error" means the run itself ended early (a cancel,
+    # a stall, the app closing); the song and every stem it had are untouched,
+    # and stems that were finished keep their notes.
+    transcription: Literal["none", "running", "done", "error"] = "none"
+    # Why the last run ended early, while transcription is "error": one of
+    # app.core.transcription_outcome.CODES. None otherwise.
+    transcription_reason: str | None = None
+    # What the last run did to each stem it was asked for: stem name ->
+    # {"status": "done" | "skipped" | "error", "notes": int,
+    #  "code": reason code or None, "transcriber": name}. A run that finishes
+    # can still hold a stem that failed (its model would not load, say).
+    transcription_stems: dict[str, dict[str, Any]] | None = None
     # When the user put this job in the Trash, or None if they have not.
     #
     # Server-side on purpose. The Trash used to live only in the browser's
@@ -504,15 +520,25 @@ class Job:
             "versions": versions_of(self),
             "active_version": active_of(self),
             "stem_fill": self.stem_fill,
+            "transcription": self.transcription,
+            "transcription_reason": self.transcription_reason,
+            # A fixed sentence per code, never the worker's own words.
+            "transcription_message": transcription_message_for(self.transcription_reason),
+            "transcription_stems": self.transcription_stems or {},
             "trashed_at": self.trashed_at,
             "favorite": self.favorite,
             "created_at": self.created_at,
         }
 
     def post_hoc_running(self) -> bool:
-        """A stem fill or a vocal split is writing into this song's folder.
-        The queue statuses do not show it: the song stays "done" meanwhile."""
-        return self.stem_fill == "running" or self.vocal_split == "running"
+        """A stem fill, a vocal split or a transcription is working in this
+        song's folder. The queue statuses do not show it: the song stays
+        "done" meanwhile."""
+        return (
+            self.stem_fill == "running"
+            or self.vocal_split == "running"
+            or self.transcription == "running"
+        )
 
     def to_queue_state(self) -> dict[str, Any]:
         """The compact record the queue view needs. Deliberately not to_state():
@@ -562,6 +588,14 @@ class Job:
             job.active_version = None
         if job.stem_fill == "running":
             job.stem_fill = "error"
+        # Saved while a transcription ran, so the process ended before it did.
+        # Left "running", every later attempt was refused as already running.
+        if job.transcription == "running":
+            job.transcription = "error"
+            job.transcription_reason = TRANSCRIPTION_INTERRUPTED
+            job.stage_message = "Done"
+        if not isinstance(job.transcription_stems, dict):
+            job.transcription_stems = None
         return job
 
 

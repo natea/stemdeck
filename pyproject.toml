@@ -97,6 +97,33 @@ dependencies = [
     # own cuBLAS/cuDNN requirement. Word timestamps come from word_timestamps=True.
     # Model weights are downloaded on first use, never bundled.
     "openai-whisper>=20250625",
+    # On-demand stem transcription (openspec change add-stem-transcription):
+    # audio stems to notes, then MIDI / MusicXML. All three model runtimes are
+    # torch-native, so no TensorFlow enters the lock: torchcrepe is CREPE on
+    # the torch already shipped (the `crepe` package needs TensorFlow),
+    # piano-transcription-inference is the ByteDance high-resolution piano
+    # model, and mt3-infer vendors YourMT3+ inference. mt3-infer is pinned
+    # exactly: it is a young third-party package behind one adapter. Same
+    # Intel-macOS gate as audio-separator (torch>=2.3 era dependencies); the
+    # feature gates itself off there. See docs/models.md for license notes.
+    # Model weights are downloaded on first use, never bundled.
+    "torchcrepe>=0.0.24; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "piano-transcription-inference>=0.0.6; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "mt3-infer==0.2.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    # mt3-infer declares transformers>=4.35, but its vendored YourMT3+ decoder
+    # is written against the T5 internals of that era. Measured here: 4.45.2
+    # transcribes; 4.46.3 and 4.47.1 load and then fail in the decoder
+    # ("'NoneType' object is not subscriptable", the T5 cache rework); 5.x no
+    # longer has transformers.utils.model_parallel_utils and does not import.
+    # Left open, the resolver picks 5.x. transformers 4.x in turn needs
+    # huggingface-hub below 1.0, so this moves the hub client that All-In-One
+    # uses for its checkpoint from 1.x to 0.36, which it declares support for.
+    "transformers>=4.45,<4.46; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    # File writers for the transcription exports. mido is pure Python (MIT);
+    # music21 (BSD-3-Clause) is imported lazily, only when a MusicXML score is
+    # asked for.
+    "mido>=1.3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "music21>=9.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
 ]
 
 [project.optional-dependencies]

@@ -6265,3 +6265,55 @@ html:not(.mode-daw) #master-drawer {
 .stems-pop-vnew:disabled { opacity: 0.45; cursor: default; }
 .stems-pop-vdelete.armed { border-color: var(--danger); color: var(--danger); }
 .stems-pop-vnew { border-color: var(--accent-2); color: var(--accent); font-weight: 600; }
+
+/* Transcribe to notes (static/js/transcribe.js). The About card, wider and
+   left-aligned: it holds a list and a row of downloads, not a logo. */
+.about-card.transcribe-card {
+  width: min(440px, calc(100vw - 32px));
+  align-items: stretch; text-align: left; gap: 12px;
+}
+.transcribe-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.transcribe-stems { display: flex; flex-direction: column; gap: 2px; }
+.transcribe-stem {
+  display: grid; grid-template-columns: auto 1fr auto; column-gap: 10px; row-gap: 0;
+  align-items: center; padding: 6px 8px; border-radius: 8px; cursor: pointer;
+}
+.transcribe-stem:hover { background: var(--panel-3); }
+.transcribe-stem input { grid-row: 1 / span 2; margin: 0; }
+.transcribe-stem-name { font-size: 13px; font-weight: 600; }
+.transcribe-stem-route { grid-column: 2; font-size: 11px; color: var(--muted); }
+.transcribe-stem-status {
+  grid-column: 3; grid-row: 1 / span 2; font-size: 11px; color: var(--muted);
+  font-family: var(--font-mono); text-align: right; max-width: 190px;
+}
+.transcribe-stem-status[data-status="done"] { color: var(--fg); }
+.transcribe-stem-status.is-error { color: var(--danger, #f87171); font-family: inherit; }
+.transcribe-actions { display: flex; gap: 8px; }
+.transcribe-actions .about-link { flex: 1; cursor: pointer; font: inherit; }
+.transcribe-actions .about-link:disabled { opacity: 0.6; cursor: default; }
+.transcribe-actions [hidden], .transcribe-card [hidden] { display: none !important; }
+.transcribe-error, .transcribe-warning {
+  margin: 0; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.45;
+}
+.transcribe-error { background: rgba(248,113,113,0.12); color: var(--danger, #f87171); }
+.transcribe-warning { background: rgba(244,183,64,0.12); color: var(--accent, #f4b740); }
+.transcribe-downloads {
+  display: flex; flex-direction: column; gap: 10px;
+  padding-top: 12px; border-top: 1px solid var(--border);
+}
+.transcribe-parts {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 12px; color: var(--muted);
+}
+.transcribe-parts select {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px; font: inherit;
+}
+.transcribe-links { display: flex; flex-direction: column; gap: 6px; }
+.transcribe-links .about-link { text-align: center; }
+.transcribe-links .about-link.is-disabled { opacity: 0.45; pointer-events: none; }
+/* Transcribe to Notes is not an MP4 export either, and the row is not there
+   at all where transcription cannot run. The id rule is needed: a menu row is
+   display: flex, which outranks the hidden attribute on its own. */
+#t-export-transcribe[hidden],
+#t-export-panel.fmt-mp4 #t-export-transcribe { display: none; }

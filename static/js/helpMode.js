@@ -368,6 +368,7 @@ const HELP = [
   ["#t-export-mix", "help.exportMix"],
   ["#t-export-stems", "help.exportStems"],
   ["#t-export-reaper", "help.exportReaper"],
+  ["#t-export-transcribe", "help.exportTranscribe"],
   ["#t-export-open-reaper", "help.openReaper"],
   ["#t-export-region", "help.exportRegion"],
   // Shown when a transposed mix cannot be exported (#858).
