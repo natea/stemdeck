@@ -134,6 +134,64 @@ test.describe("Transcribe to Notes", () => {
     await expect(d.dialog).toBeHidden();
   });
 
+  test("while it runs, each stem says where it is and the bar counts finished stems", async ({ page }) => {
+    const calls = await stubTranscription(page, {
+      run: () => finished({ vocals: done(42), bass: done(17), drums: done(230, "mt3") }),
+    });
+    // What the song reports while the run is in progress: vocals finished,
+    // bass being transcribed, drums not reached yet.
+    let progress = null;
+    await page.route(new RegExp(`/api/jobs/${JOB_ID}$`), async (route) => {
+      if (route.request().method() !== "GET" || !progress) return route.fallback();
+      const response = await route.fetch();
+      const body = await response.json();
+      await route.fulfill({ response, json: { ...body, ...progress } });
+    });
+    await openStudio(page);
+    const d = ui(page);
+    const bar = page.locator("#transcribeProgressBar");
+    const barText = page.locator("#transcribeProgressText");
+    await openDialog(page);
+    await expect(page.locator("#transcribeProgress")).toBeHidden();
+    await d.stem("other").locator("input").uncheck();
+    await d.start.click();
+
+    // Before the server has said anything: everything in the run is waiting.
+    await expect(page.locator("#transcribeProgress")).toBeVisible();
+    await expect(barText).toHaveText("0 of 3 stems done");
+    await expect(d.status("bass")).toHaveText("Waiting");
+    // A stem that is not in the run keeps its own status.
+    await expect(d.status("other")).toHaveText("Not transcribed");
+
+    const stems = ["vocals", "drums", "bass"];
+    progress = {
+      transcription: "running",
+      transcription_stems: { vocals: done(42) },
+      transcription_progress: { stems, stem: "bass", phase: "downloading", percent: 40, done: 1, total: 3, finished: ["vocals"] },
+    };
+    await expect(d.status("vocals")).toHaveText("42 notes");
+    await expect(d.status("bass")).toHaveText("Downloading model… 40%");
+    await expect(d.status("drums")).toHaveText("Waiting");
+    await expect(barText).toHaveText("1 of 3 stems done");
+    await expect(bar).toHaveJSProperty("value", 1.5);
+    await expect(bar).toHaveJSProperty("max", 3);
+
+    progress = {
+      ...progress,
+      transcription_progress: { ...progress.transcription_progress, phase: "transcribing", percent: null },
+    };
+    // The time beside the stem being transcribed counts up.
+    await expect(d.status("bass")).toHaveText(/^Transcribing… 0:0\d$/);
+    const first = await d.status("bass").textContent();
+    await expect.poll(() => d.status("bass").textContent(), { timeout: 6000 }).not.toBe(first);
+
+    progress = null;
+    await release(page, calls);
+    await expect(page.locator("#transcribeProgress")).toBeHidden();
+    await expect(d.status("bass")).toHaveText("17 notes");
+    await expect(d.status("drums")).toHaveText("230 notes");
+  });
+
   test("a stem that failed says why on its own row, and the others still download", async ({ page }) => {
     const calls = await stubTranscription(page, {
       run: () => finished({

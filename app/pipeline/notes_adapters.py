@@ -70,6 +70,20 @@ class ModelUnavailable(RuntimeError):
     """A model's weights could not be fetched or did not verify."""
 
 
+# Set by the worker: called with (phase, percent or None) while a model is
+# fetched or loaded, so the run can say what it is doing. None elsewhere.
+progress_hook: Callable[[str, int | None], None] | None = None
+
+
+def _progress(phase: str, percent: int | None = None) -> None:
+    if progress_hook is not None:
+        try:
+            progress_hook(phase, percent)
+        except Exception:
+            # Reporting progress must never cost the run itself.
+            logger.debug("progress hook failed", exc_info=True)
+
+
 def _say(text: str) -> None:
     """A progress line for the parent, which reads this process's stderr and
     resets its stall timer on every line."""
@@ -266,6 +280,7 @@ def _download(url: str, dest: Path, expected_bytes: int | None = None) -> None:
                 percent = int(done * 100 / total) if total else 0
                 if percent // 10 != reported:
                     reported = percent // 10
+                    _progress("downloading", percent if total else None)
                     _say(
                         f"downloading {dest.name}: {done >> 20} MB"
                         + (f" ({percent}%)" if total else "")
@@ -296,6 +311,7 @@ def ensure_piano_checkpoint(fetch: Callable[[str, Path, int | None], None] = _do
         if attempt == 2:
             break
         _say("fetching the piano transcription model (164 MB)")
+        _progress("downloading", 0)
         fetch(TRANSCRIBE_PIANO_URL, path, TRANSCRIBE_PIANO_BYTES)
     raise ModelUnavailable(f"{path.name} did not verify after download")
 
@@ -330,6 +346,7 @@ def ensure_mt3_checkpoint(fetch: Callable[[Path], None] = _fetch_mt3) -> Path:
         if attempt == 2:
             break
         _say("fetching the YourMT3+ transcription model (536 MB)")
+        _progress("downloading", None)
         fetch(path)
     raise ModelUnavailable("the YourMT3+ checkpoint did not verify after download")
 

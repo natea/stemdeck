@@ -10,6 +10,7 @@ import { TRANSLATIONS } from "../../static/js/i18n.js";
 import {
   LOW_CONFIDENCE, REASONS, ROUTES,
   transcribableStems, defaultChoice, downloadQuery, hasNotes, gridWarning,
+  stemPhase, overallValue,
 } from "../../static/js/transcribeCore.js";
 
 let pass = 0,
@@ -84,6 +85,21 @@ check("an unsure grid is a warning", gridWarning({ known: true, available: true,
 check("a sure grid is not", gridWarning({ known: true, available: true, confidence: LOW_CONFIDENCE }) === null);
 check("a grid with no confidence is not", gridWarning({ known: true, available: true, confidence: null }) === null);
 
+// -- progress of a running transcription ---------------------------------------
+
+const run = { stems: ["vocals", "bass", "guitar"], stem: "bass", phase: "transcribing", percent: null, done: 1, total: 3, finished: ["vocals"] };
+check("a stem with its result is done", stemPhase("vocals", done(12), run) === "done");
+check("the stem being worked on has the run's phase", stemPhase("bass", null, run) === "transcribing");
+check("a stem not reached yet is waiting", stemPhase("guitar", null, run) === "waiting");
+check("a download is shown as one", stemPhase("bass", null, { ...run, phase: "downloading", percent: 40 }) === "downloading");
+check("loading a model is shown as that", stemPhase("bass", null, { ...run, phase: "loading" }) === "loading");
+check("between stems nothing is current", stemPhase("bass", null, { ...run, stem: null, phase: "starting" }) === "waiting");
+check("an unknown phase reads as transcribing", stemPhase("bass", null, { ...run, phase: "?" }) === "transcribing");
+check("the bar counts finished stems plus half the current one", overallValue(1, 3, run) === 1.5);
+check("the bar is empty before the first stem starts", overallValue(0, 3, { ...run, stem: null }) === 0);
+check("the bar is full only when every stem is done", overallValue(3, 3, run) === 3 && overallValue(2, 3, run) < 3);
+check("no stems, no bar", overallValue(0, 0, run) === 0);
+
 // -- the client's tables match the server's ----------------------------------
 
 const serverCodes = [...outcome.matchAll(/^([A-Z_]+) = "([a-z_]+)"$/gm)].map((m) => m[2]).sort();
@@ -112,6 +128,12 @@ const KEYS = [
   "transcribe.musicxml",
   "transcribe.noGrid",
   "transcribe.lowConfidence",
+  "transcribe.progress.waiting",
+  "transcribe.progress.downloading",
+  "transcribe.progress.downloadingPercent",
+  "transcribe.progress.loading",
+  "transcribe.progress.transcribing",
+  "transcribe.progress.overall",
   ...ROUTES.map((r) => `transcribe.route.${r}`),
   ...REASONS.map((r) => `transcribe.reason.${r}`),
   ...[1, 2, 3, 4, 6, 8].map((n) => `transcribe.parts.${n}`),
@@ -127,6 +149,9 @@ for (const lang of full) {
   check(`${lang} has every transcription key`, missing.length === 0, missing.join(", "));
   check(`${lang} keeps the note count placeholder`, table["transcribe.status.done"]?.includes("{n}"));
   check(`${lang} keeps the confidence placeholder`, table["transcribe.lowConfidence"]?.includes("{n}"));
+  check(`${lang} keeps the progress placeholders`,
+    table["transcribe.progress.overall"]?.includes("{done}") && table["transcribe.progress.overall"]?.includes("{total}")
+    && table["transcribe.progress.transcribing"]?.includes("{time}") && table["transcribe.progress.downloadingPercent"]?.includes("{n}"));
 }
 
 // An English sentence copied into another table is the silent failure the
@@ -156,6 +181,7 @@ for (const id of IDS) {
   check(`#${id} is in the markup once`, html.split(`id="${id}"`).length === 2);
   check(`#${id} is used by the code`, dialog.includes(`"${id}"`) || main.includes(`"${id}"`));
 }
+check("the progress row is built by the dialog", ["transcribeProgress", "transcribeProgressText", "transcribeProgressBar"].every((id) => dialog.includes(`"${id}"`)));
 check("the row starts hidden, shown only where transcription can run", /id="t-export-transcribe"[^>]*\shidden>/.test(html));
 check("the dialog starts hidden", /class="about-backdrop hidden" id="transcribeDialog"/.test(html));
 check("the row is hidden with the other audio rows in MP4 mode", css.includes("#t-export-panel.fmt-mp4 #t-export-transcribe"));

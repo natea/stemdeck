@@ -33,6 +33,8 @@ from app.pipeline.vocal_split_status import failure_code
 
 logger = logging.getLogger("stemdeck.pipeline")
 
+_PHASES = frozenset(("starting", "downloading", "loading", "transcribing", "finishing"))
+
 # What one stem's outcome looks like: {"status": "done" | "skipped" | "error",
 # "notes": int, "code": reason code or None, "transcriber": name}.
 Outcome = dict
@@ -127,6 +129,21 @@ def transcribe_stems(job: Job, stems_dir: Path, names: list[str]) -> dict[str, O
 
     tail: list[str] = []
     outcomes: dict[str, Outcome] = {}
+
+    def show(stem: str | None, phase: str, percent: int | None = None) -> None:
+        job.transcription_progress = {
+            "stems": list(names),
+            "stem": stem,
+            "phase": phase,
+            "percent": percent,
+            "done": len(outcomes),
+            # Which stems of this run already have their result.
+            "finished": list(outcomes),
+            "total": len(names),
+        }
+        _set(job)
+
+    show(None, "starting")
     last_output = [time.monotonic()]
     done_evt = threading.Event()
     stalled = threading.Event()
@@ -179,6 +196,21 @@ def transcribe_stems(job: Job, stems_dir: Path, names: list[str]) -> dict[str, O
                         else "Transcribing stems..."
                     )
                     _set(job, stage=stage)
+                    # The stem that just finished is no longer the current one.
+                    show(None, "starting" if left > 0 else "finishing")
+                continue
+            if line.startswith("@@PROGRESS@@"):
+                try:
+                    step = json.loads(line[len("@@PROGRESS@@") :])
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(step, dict) and step.get("stem") in names:
+                    percent = step.get("percent")
+                    show(
+                        step["stem"],
+                        step.get("phase") if step.get("phase") in _PHASES else "transcribing",
+                        percent if isinstance(percent, int) and 0 <= percent <= 100 else None,
+                    )
                 continue
             if line.startswith("@@ERROR@@"):
                 msg: object = line[len("@@ERROR@@") :]
@@ -197,6 +229,7 @@ def transcribe_stems(job: Job, stems_dir: Path, names: list[str]) -> dict[str, O
                 tail.pop(0)
     finally:
         done_evt.set()
+        job.transcription_progress = None
         set_proc(job.id, None)
         wt.join(timeout=2)
         if proc.poll() is None:

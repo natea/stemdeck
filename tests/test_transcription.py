@@ -675,6 +675,111 @@ def test_the_parent_returns_each_stems_outcome(parent):
     }
 
 
+_PROGRESS_WORKER = """
+import sys, json, time
+def say(tag, obj):
+    sys.stderr.write(tag + json.dumps(obj) + "\\n"); sys.stderr.flush()
+say("@@PROGRESS@@", {"stem": "bass", "phase": "downloading", "percent": 40})
+time.sleep(0.4)
+say("@@PROGRESS@@", {"stem": "bass", "phase": "transcribing", "percent": None})
+time.sleep(0.4)
+say("@@STEM@@", {"stem": "bass", "status": "done", "notes": 3, "code": None, "transcriber": "crepe"})
+say("@@PROGRESS@@", {"stem": "piano", "phase": "loading", "percent": None})
+say("@@PROGRESS@@", {"stem": "kazoo", "phase": "loading", "percent": None})
+sys.stderr.write("@@PROGRESS@@{not json\\n")
+say("@@PROGRESS@@", {"stem": "piano", "phase": "made-up", "percent": 900})
+time.sleep(0.4)
+say("@@STEM@@", {"stem": "piano", "status": "done", "notes": 1, "code": None, "transcriber": "piano"})
+sys.stderr.write("@@DONE@@\\n"); sys.stderr.flush()
+"""
+
+
+def test_the_run_reports_where_it_is_while_it_runs(parent):
+    import threading
+
+    job = Job(id=JOB, status="done")
+    job.transcription = "running"
+    seen: list[dict] = []
+    stop = threading.Event()
+
+    def watch():
+        while not stop.wait(0.05):
+            p = job.transcription_progress
+            if p is not None and (not seen or seen[-1] != p):
+                seen.append(dict(p))
+
+    watcher = threading.Thread(target=watch, daemon=True)
+    watcher.start()
+    try:
+        outcomes = parent(_PROGRESS_WORKER, job=job)
+    finally:
+        stop.set()
+        watcher.join(2)
+    assert outcomes["bass"]["status"] == outcomes["piano"]["status"] == "done"
+    steps = [(p["stem"], p["phase"], p["percent"], p["done"], p["finished"]) for p in seen]
+    assert ("bass", "downloading", 40, 0, []) in steps
+    assert ("bass", "transcribing", None, 0, []) in steps
+    # An unknown phase reads as transcribing and a wild percent is dropped;
+    # a stem that is not in the run, and a line that is not JSON, are ignored.
+    assert ("piano", "transcribing", None, 1, ["bass"]) in steps
+    assert all(p["stem"] != "kazoo" for p in seen)
+    assert all(p["stems"] == ["bass", "piano"] and p["total"] == 2 for p in seen)
+    # Nothing is left behind when the run is over.
+    assert job.transcription_progress is None
+
+
+def test_progress_is_shown_only_while_running_and_never_saved():
+    job = Job(id=JOB, status="done")
+    job.transcription_progress = {"stems": ["bass"], "stem": "bass", "phase": "loading"}
+    assert job.to_state()["transcription_progress"] is None
+    job.transcription = "running"
+    assert job.to_state()["transcription_progress"]["phase"] == "loading"
+    assert "transcription_progress" not in job.to_record()
+    assert Job.from_record(job.to_record()).transcription_progress is None
+
+
+def test_the_worker_says_what_it_is_doing_to_each_stem(fake_stems, capfd):
+    worker.run(
+        "cpu", fake_stems, ["bass", "guitar"], transcribers=_factories(), decode=_decode_loud
+    )
+    lines = [
+        json.loads(ln[len("@@PROGRESS@@") :])
+        for ln in capfd.readouterr().err.splitlines()
+        if ln.startswith("@@PROGRESS@@")
+    ]
+    assert [(p["stem"], p["phase"]) for p in lines] == [
+        ("bass", "loading"),
+        ("bass", "transcribing"),
+        ("guitar", "loading"),
+        ("guitar", "transcribing"),
+    ]
+
+
+def test_a_download_reports_its_percent_through_the_hook(models_dir, monkeypatch):
+    import hashlib
+
+    good = b"x" * 1000
+    monkeypatch.setattr(adapters, "TRANSCRIBE_PIANO_MD5", hashlib.md5(good).hexdigest())
+    seen: list[tuple] = []
+    monkeypatch.setattr(
+        adapters, "progress_hook", lambda phase, percent: seen.append((phase, percent))
+    )
+
+    def fetch(url, dest, expected):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(good)
+
+    adapters.ensure_piano_checkpoint(fetch)
+    assert seen and seen[0] == ("downloading", 0)
+
+    def broken(phase, percent):
+        raise RuntimeError("hook blew up")
+
+    # A failing hook never costs the run.
+    monkeypatch.setattr(adapters, "progress_hook", broken)
+    adapters._progress("loading")
+
+
 def test_a_failed_stem_is_an_outcome_not_an_exception(parent):
     outcomes = parent(_PARTIAL_WORKER)
     assert outcomes["bass"]["status"] == "done"
