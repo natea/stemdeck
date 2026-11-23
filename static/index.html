@@ -18,6 +18,9 @@
     <link rel="stylesheet" href="/css/karaoke.css" />
     <link rel="stylesheet" href="/css/streamer.css" />
     <link rel="stylesheet" href="/css/settings.css" />
+    <!-- viz:begin -->
+    <link rel="stylesheet" href="/css/viz.css" />
+    <!-- viz:end -->
   </head>
   <body>
 
@@ -1123,6 +1126,17 @@
                  alone, like the click toggle (#681): gold with a dot when the
                  master is on; the name and the preset are in the tooltip and
                  the aria-label, and in the Export Mix menu's Master row. -->
+            <!-- viz:begin -->
+            <!-- Opens the Visualizer (Labs, static/js/viz/host.js): the song's
+                 stems as a 3D picture over the lanes. Hidden until host.js
+                 finds a visualization installed. -->
+            <button class="track-chip viz-chip" id="t-viz-btn" type="button" hidden aria-pressed="false" title="Visualizer (Labs)" aria-label="Visualizer" data-i18n-title="viz.openTitle" data-i18n-aria-label="viz.title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3 21 8v8l-9 5-9-5V8z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>
+              </svg>
+              <span class="viz-chip-labs" data-i18n="viz.labs">Labs</span>
+            </button>
+            <!-- viz:end -->
             <button class="track-chip master-chip" id="t-master-btn" type="button" aria-expanded="false" aria-controls="master-drawer" title="Master" aria-label="Master">
               <svg class="master-chip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M2 4h20" stroke-dasharray="2 2"/>
