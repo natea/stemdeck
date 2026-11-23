@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 logger = logging.getLogger("stemdeck.config")
@@ -500,6 +501,105 @@ TIMEOUT_VOCAL_SPLIT = _env_int("STEMDECK_TIMEOUT_VOCAL_SPLIT", 1800)
 # How often the split's stall watchdog looks. Coarse on purpose: the timeout
 # above is half an hour.
 VOCAL_SPLIT_WATCHDOG_POLL_SEC = 30
+# On-demand stem transcription (openspec change add-stem-transcription): each
+# stem goes to the kind of model that is most accurate for it. "crepe" is a
+# monophonic pitch tracker followed by app/pipeline/pitch_notes.py, "piano" the
+# ByteDance high-resolution piano model, "mt3" YourMT3+ (polyphonic, and drums
+# as General MIDI percussion). A table and not code, so a model that fails its
+# license review or proves weak on a stem is re-routed with one environment
+# variable: STEMDECK_TRANSCRIBE_<STEM>, e.g. STEMDECK_TRANSCRIBE_PIANO=mt3.
+# See docs/models.md for the license basis of each.
+TRANSCRIBERS: tuple[str, ...] = ("crepe", "piano", "mt3")
+_TRANSCRIBE_DEFAULT_ROUTES: dict[str, str] = {
+    "vocals": "crepe",
+    "lead_vocals": "crepe",
+    "bass": "crepe",
+    "piano": "piano",
+    "guitar": "mt3",
+    "other": "mt3",
+    # Harmonies are several voices at once; a pitch tracker reports one.
+    "backing_vocals": "mt3",
+    "drums": "mt3",
+}
+
+
+def transcribe_routes(environ: Mapping[str, str] | None = None) -> dict[str, str]:
+    """The stem -> transcriber table, with any STEMDECK_TRANSCRIBE_<STEM>
+    override applied. An override that names no transcriber is ignored: a typo
+    must not leave a stem with nothing to transcribe it."""
+    env = os.environ if environ is None else environ
+    routes = dict(_TRANSCRIBE_DEFAULT_ROUTES)
+    for stem in routes:
+        raw = env.get(f"STEMDECK_TRANSCRIBE_{stem.upper()}", "").strip().lower()
+        if raw in TRANSCRIBERS:
+            routes[stem] = raw
+    return routes
+
+
+TRANSCRIBE_ROUTES: dict[str, str] = transcribe_routes()
+# Longest silence from the transcription worker before it is stopped. A first
+# run downloads up to 560 MB of weights, and YourMT3+ on a CPU prints nothing
+# for minutes at a time on a long stem.
+TIMEOUT_TRANSCRIPTION = _env_int("STEMDECK_TIMEOUT_TRANSCRIPTION", 1800)
+TRANSCRIPTION_WATCHDOG_POLL_SEC = 30
+# A stem whose peak never reaches this (about -60 dBFS) is recorded as skipped
+# instead of being handed to a model, which would turn separation residue into
+# ghost notes.
+TRANSCRIBE_SILENCE_PEAK = 1e-3
+# YourMT3+ checkpoint: the published "YPTF.MoE+Multi (noPS)" model, the one
+# mt3-infer defaults to. Fetched from the authors' Hugging Face model
+# repository and checked against this SHA-256 before it is loaded.
+TRANSCRIBE_MT3_REPO = "mimbres/YourMT3"
+TRANSCRIBE_MT3_CHECKPOINT = (
+    "logs/2024/mc13_256_g4_all_v7_mt3f_sqr_rms_moe_wf4_n8k2_silu_rope_rp_b36_nops"
+    "/checkpoints/last.ckpt"
+)
+TRANSCRIBE_MT3_SHA256 = "ae38e415c79efd5592dcb9b658cdb99ddb11d4c4e1eaa364cab04a052473fc25"
+# The piano checkpoint as its author published it on Zenodo (record 4034264).
+TRANSCRIBE_PIANO_URL = (
+    "https://zenodo.org/api/records/4034264/files/CRNN_note_F1=0.9677_pedal_F1=0.9186.pth/content"
+)
+TRANSCRIBE_PIANO_FILE = "CRNN_note_F1=0.9677_pedal_F1=0.9186.pth"
+TRANSCRIBE_PIANO_MD5 = "22b961b77c1878239fec963362097045"
+TRANSCRIBE_PIANO_BYTES = 171966578
+
+# Pitch curve -> notes (app/pipeline/pitch_notes.py), for the "crepe" route.
+# Hz searched per stem. A range that fits the instrument keeps the tracker
+# from answering with an octave error outside it.
+PITCH_RANGES_HZ: dict[str, tuple[float, float]] = {
+    # 33 Hz, not lower: the tracker's lowest pitch bin is C1 (32.7 Hz), and a
+    # floor under it masks every bin, so it answers nothing at all.
+    "bass": (33.0, 400.0),
+    "vocals": (65.0, 1100.0),
+    "lead_vocals": (65.0, 1100.0),
+}
+PITCH_RANGE_DEFAULT_HZ: tuple[float, float] = (50.0, 1100.0)
+PITCH_SR = 16000
+PITCH_HOP_S = 0.010
+# Voicing has hysteresis: a note starts on confident frames and survives a
+# short dip, so a breathy consonant does not chop one sung note into three.
+PITCH_VOICED_ENTER = 0.5
+PITCH_VOICED_LEAVE = 0.35
+# Frames quieter than this share of the stem's loud level are unvoiced
+# whatever the tracker says: it is confident about reverb tails too.
+PITCH_RMS_FLOOR_RATIO = 0.05
+# Median filter over the pitch curve, removing single-frame octave jumps.
+PITCH_MEDIAN_S = 0.050
+# A note ends when the curve leaves this band around the note's own median
+# pitch for PITCH_SPLIT_HOLD_S. Vibrato stays inside it; a real step does not.
+PITCH_SPLIT_SEMITONES = 0.6
+PITCH_SPLIT_HOLD_S = 0.040
+# An attack this close to a note's start is that note's own.
+PITCH_ONSET_GUARD_S = 0.050
+PITCH_MIN_NOTE_S = 0.060
+PITCH_MERGE_GAP_S = 0.040
+
+# Quantiser (app/pipeline/quantize.py): parts each beat may be divided into.
+QUANTIZE_PARTS: tuple[int, ...] = (1, 2, 3, 4, 6, 8)
+QUANTIZE_PARTS_DEFAULT = 4
+# Bars are counted in fours when the grid has no bar marks (the librosa
+# fallback finds beats but no downbeats).
+QUANTIZE_DEFAULT_BEATS_PER_BAR = 4
 # Beat-grid stage decodes the whole drums stem (not the 180 s analyze window),
 # so it gets its own, larger budget.
 TIMEOUT_BEATGRID = _env_int("STEMDECK_TIMEOUT_BEATGRID", 300)

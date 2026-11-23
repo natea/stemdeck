@@ -52,9 +52,37 @@ from app.core.model_download import ModelDownloadError, bounded_downloads
 from app.core.process import arm_parent_watchdog
 
 
+def _save_stem(wav, path: str, samplerate: int) -> None:
+    """Write one stem as a 16-bit WAV, the way demucs.separate does.
+
+    Demucs saves through torchaudio. From torchaudio 2.9 that needs the
+    separate torchcodec package, which has no build for every platform a
+    newer torch is needed on (ARM Linux with an NVIDIA GB10, for one: torch
+    2.6 cannot drive that GPU, and torchcodec has no ARM wheel for torch 2.9).
+    Only when torchaudio refuses for that reason is the same file written with
+    soundfile instead: same clip protection (Demucs's own), same PCM 16."""
+    from demucs.audio import prevent_clip, save_audio
+
+    try:
+        save_audio(
+            wav,
+            path,
+            samplerate=samplerate,
+            clip="rescale",
+            bits_per_sample=16,
+            as_float=False,
+        )
+    except Exception as exc:
+        if "torchcodec" not in str(exc).lower():
+            raise
+        import soundfile as sf
+
+        safe = prevent_clip(wav, mode="rescale").detach().cpu().numpy()
+        sf.write(path, safe.T, samplerate, subtype="PCM_16")
+
+
 def _run_one_job(model, device: str, req: dict) -> None:
     from demucs.apply import apply_model
-    from demucs.audio import save_audio
     from demucs.separate import load_track
 
     source = Path(req["source"])
@@ -86,14 +114,7 @@ def _run_one_job(model, device: str, req: dict) -> None:
     out_dir = job_dir / DEMUCS_MODEL / source.stem
     out_dir.mkdir(parents=True, exist_ok=True)
     for stem_tensor, name in zip(sources, model.sources, strict=True):
-        save_audio(
-            stem_tensor,
-            str(out_dir / f"{name}.wav"),
-            samplerate=model.samplerate,
-            clip="rescale",
-            bits_per_sample=16,
-            as_float=False,
-        )
+        _save_stem(stem_tensor, str(out_dir / f"{name}.wav"), model.samplerate)
 
 
 def main() -> None:

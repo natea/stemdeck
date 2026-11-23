@@ -14,6 +14,7 @@ from app.api.search import router as search_router
 from app.api.stems import router as stems_router
 from app.api.suggest import router as suggest_router
 from app.api.takes import router as takes_router
+from app.api.transcription import router as transcription_router
 from app.api.video_encoders import router as video_encoders_router
 
 router = APIRouter()
@@ -21,6 +22,7 @@ router.include_router(config_router, tags=["config"])
 router.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
 router.include_router(takes_router, prefix="/jobs", tags=["takes"])
 router.include_router(backing_router, prefix="/jobs", tags=["jobs"])
+router.include_router(transcription_router, prefix="/jobs", tags=["transcription"])
 router.include_router(events_router, tags=["events"])
 router.include_router(stems_router, tags=["stems"])
 router.include_router(suggest_router, tags=["suggest"])

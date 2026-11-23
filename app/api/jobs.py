@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from app.api.takes import cancel_job_renders, forget_job_locks
+from app.core.beat_files import read_grid
 from app.core.config import (
     DISCOGS_LOOKUP_BUDGET_SEC,
     JOB_ID_RE,
@@ -837,6 +838,14 @@ def cancel_job(job_id: str) -> dict:
             proc = registry_get_proc(job_id, "split")
             if proc is not None and proc.poll() is None:
                 proc.terminate()
+        # A transcription (POST .../transcription) is another worker on a done
+        # job holding _pipeline_lock. Its error path marks the run cancelled
+        # and keeps the stems that were already transcribed.
+        elif job.transcription == "running":
+            job.cancel_requested = True
+            proc = registry_get_proc(job_id, "transcribe")
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
         # A line-by-line timing of its lyrics (POST .../lyrics/retime) stops
         # the same way: the run sees its own flag, never the job's, and
         # leaves the lyrics as they were.
@@ -1074,7 +1083,9 @@ async def start_vocal_split(job_id: str) -> Response:
     # Refused, not queued behind it: starting it here cleared the cancel sent
     # to the fill. No await from here to "running", and the fill re-checks
     # after its own, so the two never both start.
-    if job.stem_fill == "running":
+    # A transcription is reading the stems this would add to, and holds the
+    # worker slot (POST .../transcription refuses a running split the same way).
+    if job.stem_fill == "running" or job.transcription == "running":
         raise JobBusy()
 
     stems_dir = (JOBS_DIR / job_id / "stems").resolve()
@@ -2434,29 +2445,12 @@ def get_beats(job_id: str) -> Response:
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not ready")
 
-    computed_path, user_path = _beats_paths(job_id)
-    if not computed_path.is_file():
+    computed_path, _ = _beats_paths(job_id)
+    # Merged with the user's edits in one place (app/core/beat_files.py), the
+    # same grid the note quantiser reads.
+    grid = read_grid(computed_path.parent)
+    if grid is None:
         raise HTTPException(status_code=404, detail="beat grid not found")
-    try:
-        grid = json.loads(computed_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.exception("unreadable beat grid for %s", job_id)
-        raise HTTPException(status_code=404, detail="beat grid not found") from exc
-
-    # User edits override the detected beats but keep the computed onsets,
-    # which the editor still needs for snapping and which editing never changes.
-    if user_path.is_file():
-        try:
-            edits = json.loads(user_path.read_text(encoding="utf-8"))
-            if isinstance(edits.get("beats"), list) and edits["beats"]:
-                grid["beats"] = edits["beats"]
-                grid["bars"] = edits.get("bars") or []
-                grid["edited"] = True
-        except (OSError, json.JSONDecodeError):
-            logger.warning("ignoring unreadable beat edits for %s", job_id)
-
-    grid.setdefault("bars", [])
-    grid.setdefault("edited", False)
     return JSONResponse(grid, headers={"Cache-Control": "no-store"})
 
 

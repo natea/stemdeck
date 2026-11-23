@@ -39,13 +39,14 @@ from app.core.models import (
 from app.core.settings import fsync_dir, quarantine_corrupt
 from app.core.stem_files import stem_exists, stem_names_on_disk, stem_path, stem_url
 from app.core.takes import reconcile_tracks, recover_takes
+from app.core.transcription_files import read_notes, transcribed_stems
 from app.core.versions import clean_stems
 
 logger = logging.getLogger("stemdeck.registry")
 
 REGISTRY_VERSION = 2
 
-Operation = Literal["pipeline", "fill", "split", "retime"]
+Operation = Literal["pipeline", "fill", "split", "retime", "transcribe"]
 
 _jobs: dict[str, Job] = {}
 # Active subprocesses keyed by job id and operation. Lets POST /cancel
@@ -912,6 +913,18 @@ def _rebuild_from_folder(job_dir: Path) -> tuple[Job, bool] | None:
     # (vocal_split._move_in), and a kill between them leaves a lead alone.
     has_split = all(stem_exists(stems_dir, name) for name in EXTRA_STEM_NAMES)
     vocal_split = "done" if has_split else "none"
+    # Notes are files too (stems/transcription/), so a song rebuilt from its
+    # folder still says which stems it has transcribed.
+    transcribed: dict[str, dict] = {}
+    for name in transcribed_stems(stems_dir):
+        record = read_notes(stems_dir, name)
+        if record is not None:
+            transcribed[name] = {
+                "status": "skipped" if record.get("skipped") else "done",
+                "notes": len(record["notes"]),
+                "code": None,
+                "transcriber": record.get("transcriber"),
+            }
     # WAV or MP3, whichever the song was stored as (#783).
     stems = [
         {"name": name, "url": stem_url(job_dir.name, stems_dir, name)}
@@ -993,6 +1006,8 @@ def _rebuild_from_folder(job_dir: Path) -> tuple[Job, bool] | None:
         # The file is the record: metadata.json predates it for most jobs.
         has_lyrics=(job_dir / LYRICS_FILE).is_file(),
         vocal_split=vocal_split,
+        transcription="done" if transcribed else "none",
+        transcription_stems=transcribed or None,
         stem_format=meta.get("stem_format") if meta.get("stem_format") in ("wav", "mp3") else None,
         stem_mp3_kbps=meta.get("stem_mp3_kbps")
         if isinstance(meta.get("stem_mp3_kbps"), int)
