@@ -41,6 +41,8 @@ export function cleanPrefs(raw, { parts = [1, 2, 3, 4, 6, 8], defaultParts = 4 }
     hidden,
     parts: parts.includes(wanted) ? wanted : defaultParts,
     zoom: ZOOMS.includes(zoom) ? zoom : DEFAULT_ZOOM,
+    // Follow the song unless the reader turned it off.
+    follow: src.follow !== false,
   };
 }
 

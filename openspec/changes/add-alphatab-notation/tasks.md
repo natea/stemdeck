@@ -30,6 +30,7 @@
 - [x] 4.4 Implement the external media handler against the player (position pushed while playing, seek from a click on the score, rate and loop); verify a Playwright test asserts the cursor's bar at three points during playback, at 0.5x, across a loop jump and after a click-to-seek
 - [x] 4.5 Implement the view choices (stems shown, zoom, resolution) with per-song persistence, and redraw after a beat-grid edit or a finished transcription; verify Playwright tests for hide-a-stem, change-resolution, persistence after reopening, and redraw after a grid edit
 - [x] 4.6 Verify opening the view makes no sound and creates no second audio context (assert in a Playwright test that no alphaTab synth or soundfont request occurs)
+- [x] 4.7 Keep the score following the song after it is drawn again during playback (ask alphaTab for its play state instead of remembering it), and add a Follow switch, remembered per song, that turns the scrolling off and on; verify Playwright tests for a redraw while playing and for Follow off and on, and the same two checks in the system webview
 
 ## 5. Tablature in the view
 

@@ -44,6 +44,7 @@ const ui = (page) => ({
   zoomIn: page.locator("#notationZoomIn"),
   zoomOut: page.locator("#notationZoomOut"),
   zoomValue: page.locator("#notationZoomValue"),
+  follow: page.locator("#notationFollow"),
   downloads: page.locator("#notationDownloads summary"),
   midiPlayed: page.locator("#notationMidiPlayed"),
   midiQuantised: page.locator("#notationMidiQuantised"),
@@ -509,6 +510,93 @@ test.describe("Notation view", () => {
     expect((await player(page)).playing).toBe(false);
   });
 
+  // A narrow window, large notes and a short drawer: the three bars take more
+  // than one system, and the later ones are below what is on show.
+  async function tallScore(page) {
+    await page.setViewportSize({ width: 960, height: 900 });
+    await openSong(page);
+    await openScore(page);
+    const v = ui(page);
+    for (let i = 0; i < 6; i++) await v.zoomIn.click({ force: true });
+    await expect(v.zoomValue).toHaveText("150%");
+    await v.resize.focus();
+    for (let i = 0; i < 20; i++) await page.keyboard.press("ArrowDown");
+    await expect.poll(async () => (await v.scroll.evaluate((el) => el.scrollHeight - el.clientHeight))).toBeGreaterThan(400);
+    return v;
+  }
+
+  // Where the cursor's bar is, and whether its top is in the part on show.
+  const cursorPlace = (page) => page.evaluate(() => {
+    const scroller = document.querySelector("#notationScroll");
+    const view = scroller.getBoundingClientRect();
+    const bar = document.querySelector("#notationScore .at-cursor-bar").getBoundingClientRect();
+    const top = bar.top - view.top;
+    return { onShow: top >= -1 && top < view.height, scrollTop: scroller.scrollTop };
+  });
+
+  test("the score keeps following the song after it is drawn again while playing", async ({ page }) => {
+    // A reader unticks a stem with the song running. alphaTab stops its own
+    // playing state when it is given a score, and has to be told again, or
+    // the cursor walks off the bottom of the drawer and nothing scrolls.
+    const v = await tallScore(page);
+    await page.locator("#t-speed-05").click(); // six seconds of song, twelve of clock
+    const start = await cursorPlace(page);
+    await page.locator("#t-play").click();
+    await expect.poll(async () => (await player(page)).playing).toBe(true);
+    await v.stem("vocals").uncheck();
+    await expect(v.score).toHaveAttribute("data-tracks", "3");
+    await expect(v.drawer).toHaveAttribute("aria-busy", "false");
+    expect((await player(page)).playing, "the redraw did not stop the song").toBe(true);
+    expect((await player(page)).time, "redrawn before the last bar").toBeLessThan(2 * BAR_SEC);
+
+    const late = await barWhenPast(page, 2 * BAR_SEC + 0.5);
+    expect(late.bar).toBe(2);
+    await expect.poll(async () => (await cursorPlace(page)).onShow).toBe(true);
+    expect((await cursorPlace(page)).scrollTop).toBeGreaterThan(start.scrollTop + 200);
+  });
+
+  test("Follow off leaves the score where the reader put it, and on brings the bar back", async ({ page }) => {
+    const v = await tallScore(page);
+    await expect(v.follow).toBeChecked();
+    await seek(page, 0);
+    await expectBar(page, 0);
+    await expect.poll(async () => (await cursorPlace(page)).onShow).toBe(true);
+    const top = (await cursorPlace(page)).scrollTop;
+
+    // Off: the song moves on, paused or playing, and the score stays put.
+    await v.follow.uncheck();
+    await seek(page, 2 * BAR_SEC + 0.3);
+    await expectBar(page, 2);
+    await page.waitForTimeout(600); // longer than the glide a follow would take
+    expect(await cursorPlace(page)).toEqual({ onShow: false, scrollTop: top });
+    await seek(page, 0);
+    await expectBar(page, 0);
+    await page.locator("#t-speed-05").click();
+    await page.locator("#t-play").click();
+    const late = await barWhenPast(page, 2 * BAR_SEC + 0.5);
+    expect(late.bar).toBe(2);
+    expect(await cursorPlace(page)).toEqual({ onShow: false, scrollTop: top });
+    // The reader's own scrolling is theirs.
+    await v.scroll.evaluate((el) => { el.scrollTop = 40; });
+    await page.waitForTimeout(300);
+    expect((await cursorPlace(page)).scrollTop).toBe(40);
+    await page.locator("#t-play").click();
+    await expect.poll(async () => (await player(page)).playing).toBe(false);
+
+    // On again: the bar the song is in comes back into view at once.
+    await v.follow.check();
+    await expect.poll(async () => (await cursorPlace(page)).onShow).toBe(true);
+    expect((await cursorPlace(page)).scrollTop).toBeGreaterThan(top + 200);
+
+    // The choice is the song's, like the zoom.
+    await v.follow.uncheck();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await pickSong(page, SONG);
+    await openScore(page);
+    await expect(v.follow).not.toBeChecked();
+    await v.follow.check();
+  });
+
   // ── 4.5 The view's choices ──
 
   test("unticking a stem removes its staff and asks only for the others", async ({ page }) => {
@@ -519,9 +607,10 @@ test.describe("Notation view", () => {
     await v.stem("drums").uncheck();
     expect(query((await asked).url()).stems).toBe("vocals,guitar,bass");
     await expect(v.score).toHaveAttribute("data-tracks", "3");
-    const text = await v.score.evaluate((el) => [...el.querySelectorAll("svg text")].map((t) => t.textContent).join("|"));
-    expect(text).not.toContain("Drums");
-    expect(text).toContain("Bass");
+    // The staves arrive a moment after the score is counted: wait for them.
+    const drawn = () => v.score.evaluate((el) => [...el.querySelectorAll("svg text")].map((t) => t.textContent).join("|"));
+    await expect.poll(drawn).toContain("Bass");
+    expect(await drawn()).not.toContain("Drums");
 
     // Unticking them all says so, instead of an empty sheet.
     for (const name of ["vocals", "guitar", "bass"]) await v.stem(name).uncheck();

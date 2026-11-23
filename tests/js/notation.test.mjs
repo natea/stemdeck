@@ -71,10 +71,14 @@ check("every stem can be unticked", same(shownStems(available, none), []));
 // ── What a song remembers ──
 
 check("the choices are kept per song", prefsKey("abc123") === "stemdeck:notation:abc123" && prefsKey("x") !== prefsKey("y"));
-check("nothing stored is the defaults", same(fresh, { hidden: null, parts: 4, zoom: DEFAULT_ZOOM }));
+check("nothing stored is the defaults", same(fresh, { hidden: null, parts: 4, zoom: DEFAULT_ZOOM, follow: true }));
 check(
   "stored choices come back",
-  same(cleanPrefs({ hidden: ["drums"], parts: 3, zoom: 1.15 }), { hidden: ["drums"], parts: 3, zoom: 1.15 }),
+  same(cleanPrefs({ hidden: ["drums"], parts: 3, zoom: 1.15, follow: false }), { hidden: ["drums"], parts: 3, zoom: 1.15, follow: false }),
+);
+check(
+  "the score follows the song unless that was turned off",
+  cleanPrefs({ parts: 3 }).follow === true && cleanPrefs({ follow: "no" }).follow === true && cleanPrefs({ follow: false }).follow === false,
 );
 check(
   "damaged choices fall back to the defaults",

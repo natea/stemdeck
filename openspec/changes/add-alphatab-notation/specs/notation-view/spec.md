@@ -39,7 +39,7 @@ When a song cannot be shown as notation, the view SHALL say why and offer the ne
 - **THEN** the Notation view is not offered
 
 ### Requirement: The score follows playback
-While the song plays, the view SHALL show a cursor at the position being heard, driven by StemDeck's own player, and SHALL scroll so the cursor stays visible. The cursor SHALL stay in step when the playback speed is changed, when a loop repeats, and after a seek.
+While the song plays, the view SHALL show a cursor at the position being heard, driven by StemDeck's own player, and SHALL scroll so the cursor stays visible. The cursor SHALL stay in step when the playback speed is changed, when a loop repeats, and after a seek. The scrolling SHALL keep working after the score is drawn again while the song plays. The user SHALL be able to turn the scrolling off, to scroll the score themselves, and on again; the choice SHALL be remembered for the song.
 
 #### Scenario: Playing
 - **WHEN** the song plays through the downbeat of bar 12
@@ -60,6 +60,18 @@ While the song plays, the view SHALL show a cursor at the position being heard, 
 #### Scenario: Playback paused
 - **WHEN** playback is paused
 - **THEN** the cursor stays where the song stopped
+
+#### Scenario: Redrawn while playing
+- **WHEN** the user unticks a stem, or changes the resolution, while the song plays
+- **THEN** the score is drawn again and still scrolls to each system as the song reaches it
+
+#### Scenario: Follow turned off
+- **WHEN** the user turns Follow off and the song plays past the part of the score on show
+- **THEN** the cursor moves on and the score stays where the user left it
+
+#### Scenario: Follow turned on again
+- **WHEN** the user turns Follow on while the bar being played is out of view
+- **THEN** the score scrolls to that bar at once
 
 ### Requirement: Clicking the score moves the song
 The user SHALL be able to click a bar or beat in the score to move the song's playback position there.

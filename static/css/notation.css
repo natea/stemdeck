@@ -103,7 +103,7 @@
   font-size: 11px;
   color: var(--muted);
 }
-.notation-spacer { flex: 1; min-width: 4px; }
+.notation-spacer { flex: 1; min-width: 0; }
 
 .notation-stems { display: flex; flex-wrap: wrap; gap: 2px 4px; }
 .notation-stem {
@@ -163,6 +163,13 @@
 .notation-btn.is-disabled { opacity: 0.4; cursor: not-allowed; }
 .notation-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 
+.notation-look { display: inline-flex; align-items: center; gap: 4px; }
+/* On: lit, like the stems that are ticked. */
+.notation-follow[aria-checked="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.notation-follow[aria-checked="true"]:hover { color: var(--accent); }
 .notation-zoom { display: inline-flex; align-items: center; gap: 4px; }
 .notation-zoom-btn { width: 26px; padding: 0; font-size: 14px; line-height: 1; }
 .notation-zoom-value {

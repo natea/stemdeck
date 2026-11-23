@@ -87,7 +87,13 @@ export function parseAlphaTex(alphaTab, text) {
   }
 }
 
-function settingsFor(alphaTab, { scrollElement, zoom, useWorkers }) {
+// Following: the system being played is brought to the top of the view as
+// the song reaches it. Not following: alphaTab never scrolls.
+function scrollModeFor(alphaTab, follow) {
+  return follow ? alphaTab.ScrollMode.Continuous : alphaTab.ScrollMode.Off;
+}
+
+function settingsFor(alphaTab, { scrollElement, zoom, useWorkers, follow }) {
   const settings = new alphaTab.Settings();
   settings.core.fontDirectory = `${BASE}font/`;
   settings.core.scriptFile = `${BASE}alphaTab.min.mjs`;
@@ -111,6 +117,7 @@ function settingsFor(alphaTab, { scrollElement, zoom, useWorkers }) {
   settings.player.enableCursor = true;
   settings.player.enableUserInteraction = true;
   settings.player.scrollElement = scrollElement;
+  settings.player.scrollMode = scrollModeFor(alphaTab, follow);
   // A little air above the system being played.
   settings.player.scrollOffsetY = -12;
   return settings;
@@ -143,9 +150,13 @@ export async function guitarProBytes(text, names = {}) {
  * @param {(seconds: number) => void} options.onSeek A click on the score asks
  *   for the song to move to this time.
  * @param {number} [options.zoom] The drawing scale, 1 being alphaTab's own size.
+ * @param {boolean} [options.follow] Whether the score scrolls to keep the bar
+ *   the song is in on show.
  */
-export async function createScoreView(host, { scrollElement, duration, onSeek, zoom = 1 } = {}) {
+export async function createScoreView(host, { scrollElement, duration, onSeek, zoom = 1, follow = true } = {}) {
   const alphaTab = await loadAlphaTab();
+  const PLAYING = alphaTab.synth?.PlayerState?.Playing ?? 1;
+  let following = Boolean(follow);
   let api = null;
   let usingWorkers = true;
   let destroyed = false;
@@ -159,6 +170,7 @@ export async function createScoreView(host, { scrollElement, duration, onSeek, z
   let scrollTimer = null;
   const waiting = new Set(); // resolvers for the next "drawing started"
 
+  // (All of this only while following: see setFollow.)
   // alphaTab scrolls to its cursor by itself only while it is playing. After
   // a seek with the song paused, the bar the song is on may be far off the
   // part of the score on show: bring it into view. Only when the position
@@ -168,9 +180,9 @@ export async function createScoreView(host, { scrollElement, duration, onSeek, z
   // there, and a drag along the waveform is many positions in a row.
   function showCursor() {
     clearTimeout(scrollTimer);
-    if (playing) return;
+    if (playing || !following) return;
     scrollTimer = setTimeout(() => {
-      if (playing || destroyed) return;
+      if (playing || destroyed || !following) return;
       try {
         api?.scrollToCursor();
       } catch (e) {
@@ -213,7 +225,7 @@ export async function createScoreView(host, { scrollElement, duration, onSeek, z
     usingWorkers = useWorkers;
     api = new alphaTab.AlphaTabApi(
       host,
-      settingsFor(alphaTab, { scrollElement, zoom: scale, useWorkers }),
+      settingsFor(alphaTab, { scrollElement, zoom: scale, useWorkers, follow: following }),
     );
     api.error.on((e) => console.warn("[notation] alphaTab:", e?.message || e));
     api.renderStarted.on(() => {
@@ -295,11 +307,19 @@ export async function createScoreView(host, { scrollElement, duration, onSeek, z
       api?.player?.output?.updatePosition?.(ms);
     },
 
-    /** Mirror the player's state, so alphaTab animates its cursor only while
-     * the song moves. Never starts or stops the player. */
+    /**
+     * Mirror the player's state, so alphaTab animates its cursor, and scrolls
+     * after it, only while the song moves. Never starts or stops the player.
+     * Cheap to call every frame, and meant to be.
+     *
+     * alphaTab is asked what state it is in, not remembered: it leaves its
+     * playing state by itself when it is given a score to draw. Unticking a
+     * stem while the song ran left it paused for good, so its cursor still
+     * moved (it is told the position) but the score no longer scrolled.
+     */
     setPlaying(next) {
-      if (!api || next === playing) return;
-      playing = next;
+      playing = Boolean(next);
+      if (!api || (api.playerState === PLAYING) === playing) return;
       try {
         if (next) api.play();
         else api.pause();
@@ -311,6 +331,30 @@ export async function createScoreView(host, { scrollElement, duration, onSeek, z
     /** The index of the bar the cursor is in, from 0, or -1 with no score. */
     currentBar() {
       return barAt(barStarts, tick);
+    },
+
+    /** Whether the score scrolls to keep the bar the song is in on show. */
+    get follows() { return following; },
+
+    /** Turn following on or off. Turned on, the bar comes into view at once. */
+    setFollow(next) {
+      const wanted = Boolean(next);
+      if (wanted === following) return;
+      following = wanted;
+      clearTimeout(scrollTimer);
+      if (!api) return;
+      api.settings.player.scrollMode = scrollModeFor(alphaTab, following);
+      api.updateSettings();
+      if (!following) return;
+      // After alphaTab has taken the setting in: it makes its scroller then.
+      scrollTimer = setTimeout(() => {
+        if (destroyed || !following) return;
+        try {
+          api?.scrollToCursor();
+        } catch (e) {
+          console.warn("[notation] could not scroll to the cursor:", e);
+        }
+      }, CURSOR_SETTLE_MS);
     },
 
     setZoom(next) {

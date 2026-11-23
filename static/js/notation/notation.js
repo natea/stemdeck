@@ -100,6 +100,16 @@ function build() {
   parts.id = "notationParts";
   partsField.append(partsLabel, parts);
 
+  // Follow: whether the score scrolls with the song, or stays where the
+  // reader put it. A switch the size of a zoom button: the row is full.
+  const follow = el("button", "notation-btn notation-zoom-btn notation-follow");
+  follow.type = "button";
+  follow.id = "notationFollow";
+  follow.setAttribute("role", "switch");
+  follow.setAttribute("aria-checked", "true");
+  // A target: the place the song is at, kept in sight.
+  follow.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/></svg>';
+
   const zoom = el("div", "notation-zoom");
   zoom.setAttribute("role", "group");
   const zoomOut = el("button", "notation-btn notation-zoom-btn", "−");
@@ -151,7 +161,10 @@ function build() {
   close.id = "notationClose";
   close.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
-  bar.append(title, barNo, stems, el("div", "notation-spacer"), partsField, zoom, downloads, close);
+  // Follow sits with the zoom: the two say how the score is looked at.
+  const look = el("div", "notation-look");
+  look.append(follow, zoom);
+  bar.append(title, barNo, stems, el("div", "notation-spacer"), partsField, look, downloads, close);
 
   // Second row: how the fretted stems on show are drawn.
   const tabs = el("div", "notation-tabs");
@@ -183,7 +196,8 @@ function build() {
 
   drawer.replaceChildren(resize, bar, tabs, notices, body, foot);
   ui = {
-    resize, title, barNo, stems, partsLabel, parts, zoomOut, zoomValue, zoomIn,
+    resize, title, barNo, stems, follow,
+    partsLabel, parts, zoomOut, zoomValue, zoomIn,
     downloads, downloadsLabel, midiPlayed, midiQuantised, musicxml, guitarPro, close,
     tabs, notices, scroll, score, empty, emptyText, emptyAction, emptyLink, busy, foot,
   };
@@ -200,6 +214,7 @@ function build() {
     savePrefs();
     refresh();
   });
+  follow.addEventListener("click", () => setFollow(!prefs.follow));
   zoomOut.addEventListener("click", () => setZoom(stepZoom(prefs.zoom, -1)));
   zoomIn.addEventListener("click", () => setZoom(stepZoom(prefs.zoom, 1)));
   guitarPro.addEventListener("click", downloadGuitarPro);
@@ -245,6 +260,8 @@ function relabel() {
   ui.stems.setAttribute("aria-label", t("notation.stemsAria"));
   ui.partsLabel.textContent = t("transcribe.resolution");
   for (const option of ui.parts.options) option.textContent = t(`transcribe.parts.${option.value}`);
+  ui.follow.setAttribute("aria-label", t("notation.follow"));
+  ui.follow.title = t("notation.followTitle");
   ui.zoomOut.title = t("notation.zoomOut");
   ui.zoomOut.setAttribute("aria-label", t("notation.zoomOut"));
   ui.zoomIn.title = t("notation.zoomIn");
@@ -316,6 +333,17 @@ function wireResize(handle) {
 
 function savePrefs() {
   if (jobId) storeSet(prefsKey(jobId), prefs);
+}
+
+function setFollow(next) {
+  prefs = { ...prefs, follow: Boolean(next) };
+  savePrefs();
+  paintFollow();
+  view?.setFollow(prefs.follow);
+}
+
+function paintFollow() {
+  ui.follow.setAttribute("aria-checked", String(prefs.follow));
 }
 
 function setZoom(next) {
@@ -630,6 +658,8 @@ async function refresh() {
       defaultParts: config?.quantize_parts_default,
     });
     ui.parts.value = String(prefs.parts);
+    paintFollow();
+    view?.setFollow(prefs.follow);
     paintZoom();
     paintStems();
     const shown = shownStems(available, prefs);
@@ -676,6 +706,7 @@ async function draw(stale) {
     const made = await createScoreView(ui.score, {
       scrollElement: ui.scroll,
       zoom: prefs.zoom,
+      follow: prefs.follow,
       duration: () => totalDuration,
       onSeek: (seconds) => setPlayheadTime(seconds),
     });
