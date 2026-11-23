@@ -1,0 +1,20 @@
+alphaTab 1.9.0
+Source: npm package @coderline/alphatab@1.9.0
+Tarball: https://registry.npmjs.org/@coderline/alphatab/-/alphatab-1.9.0.tgz
+Tarball SHA-1: a0d2716da369cc8ad261842bb40594398a5fde89
+Tarball integrity: sha512-pG/Um03DdiTW7i9KR+rPTRRnzIW5oJBWs67altBXtCkxGvUG1RuvkgRTZO3GIaOD2vATjcw+5OevMZl9I2/T+Q==
+
+The files below are copied unmodified from the tarball (dist/ and the package
+root). Left out: the soundfont, the audio worklet, the UMD and unminified
+builds, and the other font formats. StemDeck never uses alphaTab's synthesiser.
+
+To check: shasum -a 256 -c VERSION (lines that are not hashes are skipped
+with a warning), or run tests/test_vendor_alphatab.py.
+
+SHA-256 (path relative to this folder, and its path in the tarball):
+789d30dc5ae71de634512266f869d7d2a55ae65c410630ab875caff3a2d4dff7  alphaTab.min.mjs
+bc8aa20762f4802d19a09b9864ca5ef27e98ce2586a318f7c03a9f7b479c4934  alphaTab.core.min.mjs
+cf4e01aed7e492bee5ac45f2fcc349ad07f0cac84a0a4371c02d89b6d5885847  alphaTab.worker.min.mjs
+181e0e7c4889f9ad57dde0a11988fa61b941617aa499ecdb9dfd4713896c2b19  font/Bravura.woff2
+de981130586154b6ce2cf91528b9291789192d62234d0d7e6e41d085b8e1d351  LICENSE
+c24929be7028026a65ee8894da1e3c36d2a4ccce0548d9ba8ba64509f46319ee  font/Bravura-OFL.txt

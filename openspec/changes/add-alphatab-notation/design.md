@@ -48,6 +48,8 @@ alphaTex expresses everything this change needs: tracks, staff and tab staves pe
 - **Why server-side text and not building alphaTab's model in JavaScript:** the generator is a pure function next to the quantiser and the fingering, and is unit-tested with pytest. The browser side stays a thin `api.tex(text)` call.
 - **Why not feed alphaTab the MusicXML export:** MusicXML cannot carry the sync points, and alphaTab's MusicXML import is one more translation between the fingering and what is drawn.
 - **Durations.** A quantised note's length in grid steps is split into tied note values within each bar (for example five sixteenths is a quarter tied to a sixteenth), and gaps become rests. This is the same decomposition the MusicXML writer needs, so it moves into a shared helper.
+  As built: `app/pipeline/note_values.py` holds `split_steps` and the grouping of notes into written events (`chord_spans`, `voice_spans`, `drum_spans`). The grouping moved there out of the MusicXML writer, which now imports it. The split itself had nothing to move: the MusicXML writer of `add-stem-transcription` leaves ties and rests to music21, and still does, so `split_steps` is new code used by the alphaTex writer. The two writers can therefore differ in how they break one long note into tied values, never in which notes start where.
+- **Unplaced notes.** A fretted stem shown as both is one `score tabs` staff when every note has a string and fret. When some do not, it is two staves in the track, a staff with every note and a tab staff with the placed ones, because alphaTab cannot hide a note from the tab half of one staff.
 - **Voices.** A monophonic stem is one voice. A polyphonic stem groups notes that start together and share a length into chords; notes that overlap with different lengths are trimmed to the next onset in that track. This loses some sustain in piano parts and is stated in the view.
 - **Octave.** Guitar and bass are written an octave above where they sound. The track is given alphaTab's display transposition so the staff reads conventionally while the pitches stay true.
 
@@ -88,6 +90,7 @@ Which stems are shown, zoom, layout and resolution are per-song UI state, kept t
 ### 7. Exports
 
 - **Guitar Pro** is produced in the browser by alphaTab's Guitar Pro 7 exporter from the score it has loaded for the chosen stems, then saved under the song's name. No Python writer and no new dependency, and the file is by construction what the view shows. The `GET .../transcription.alphatex` endpoint is the source, so a client without the view can still get it by loading the text into alphaTab.
+  As built: the file is made from the same endpoint's text asked for with `unplaced=omit`, not from the score object on screen. The two are the same text unless a fretted stem has notes with no string and fret. The view then draws two staves for that stem (notation with every note, tab with the placed ones), and a Guitar Pro track made of those two staves was read by MuseScore 4 with the wrong tuning. For the file the stem stays one staff and those notes are left out; the view has already counted them.
 - **MusicXML** gains, for fretted parts, a `<technical>` string and fret on each placed note and the part's staff tuning and capo. If music21 cannot express the staff tuning, the writer adds those elements to the tree before serialising.
 - **MIDI** is unchanged.
 
@@ -109,6 +112,27 @@ Alternative considered: a fifth mode. Rejected for now: modes keep their own ste
 - **[The desktop webview may treat module workers differently from Chrome]** → The main-thread fallback covers it, and the desktop Playwright suite gets one notation test.
 - **[1.6 MB more in every install]** → Loaded only when the view opens.
 
+## Spike Findings (task 1.3)
+
+A throwaway page, served by the app with its real headers, loaded a hand-written two-track alphaTex score (a staff, a staff with tab, five `\sync` points) into the vendored alphaTab 1.9.0 and drove the cursor from a fake clock. It was run in Playwright Chromium, in Playwright WebKit, and in the macOS system WKWebView loaded from `http://127.0.0.1:<port>` (the engine and origin the macOS desktop shell uses), each with the worker on and with `useWorkers = false`. All six runs: the score rendered, the CSP was unchanged, there were no console errors or CSP violations, every request was same-origin, and no `AudioContext` was created. The packaged desktop app itself was not launched; that is task 7.1.
+
+The alphaTab names the bridge uses, as they are in 1.9.0:
+
+- **Loading:** `await import("/vendor/alphatab/alphaTab.min.mjs")`. It imports `alphaTab.core.min.mjs` itself and starts `new Worker(new URL("./alphaTab.worker.min.mjs", import.meta.url), {type: "module"})`, a same-origin module worker. Its blob-worker fallbacks are blocked by the CSP, which is why the main-thread fallback exists.
+- **Settings:** `new alphaTab.Settings()`, then `core.fontDirectory`, `core.scriptFile`, `core.useWorkers`, `core.engine = "svg"`, and `core.smuflFontSources = new Map([[alphaTab.FontFileFormat.Woff2, ".../font/Bravura.woff2"]])`. Naming the one font file matters: the default source list also names the `.eot`, `.woff`, `.otf` and `.svg` files, which are not vendored.
+- **Player:** `player.playerMode = alphaTab.PlayerMode.EnabledExternalMedia`, `player.enableCursor`, `player.enableUserInteraction`, `player.scrollElement`.
+- **API:** `new alphaTab.AlphaTabApi(element, settings)`, `api.tex(text)`, `api.renderTracks(tracks)`, `api.play()`, `api.pause()`, `api.destroy()`, `api.boundsLookup.findMasterBarByIndex(i)`. Events (each has `.on(fn)`): `api.error`, `api.scoreLoaded`, `api.renderFinished`, `api.playerReady`, `api.playedBeatChanged`, `api.playerPositionChanged`.
+- **External media:** `api.player.output.handler = { backingTrackDuration, playbackRate, masterVolume, seekTo(ms), play(), pause() }` and `api.player.output.updatePosition(ms)`. Times are milliseconds of media time.
+- **Exporter:** `new alphaTab.exporter.Gp7Exporter().export(score, settings)` returns the file's bytes.
+- **alphaTex:** `\track "Name" "short"`, `\staff{score}` / `\staff{tabs}` / `\staff{score tabs}`, `\tuning (G2 D2 A1 E1)` (highest string first), `\ts 4 4`, `\tempo 120`, and after the last bar a line holding `.` followed by `\sync barIndex occurence milliseconds [ratio]` lines.
+
+What the spike showed about behaviour:
+
+- `updatePosition(ms)` moves the cursor whether or not alphaTab has been told it is playing. `playedBeatChanged` fires only between `api.play()` and `api.pause()`. `api.play()` and `api.pause()` call the handler's `play()` and `pause()`, so the bridge's handler must not start or stop the player from them, or the two would call each other.
+- With the handler's `playbackRate` fixed at 1, the position is plain media time: the cursor crossed each bar line at that bar's sync time (bar 2 at 2000 ms, bar 3 at 5000 ms, bar 4 at 7000 ms) and jumped back when the clock did. Speed changes and loop jumps therefore need no handling.
+- A click on a bar calls `handler.seekTo(ms)` with the media time of that bar from the sync points (bar 3 gave 5000). alphaTab also calls `seekTo` once when a score loads, with a time near zero, which the bridge must not forward as a seek.
+- The cursor does not move while the page is hidden (`document.visibilityState === "hidden"`). This is harmless here: a hidden page shows no cursor.
+
 ## Migration Plan
 
 Additive, after `add-stem-transcription` ships. A song with no `tab.json` uses default tunings. Rollback is removing the toggle, the endpoints and the vendor folder; leftover `tab.json` files are inert. Archive this change after `add-stem-transcription`, because its `notation-export` delta adds to a spec that change creates.
@@ -116,3 +140,5 @@ Additive, after `add-stem-transcription` ships. A song with no `tab.json` uses d
 ## Open Questions
 
 - Whether `other` should be offered as tab when it is mostly a second guitar. Left out; it can be added as a per-stem option without changing the design.
+- **How the desktop app saves the Guitar Pro file** (found while building task 6.2). Decision 7 has alphaTab make the file in the browser and the browser save it. The desktop shell saves a download only by fetching a localhost URL itself (`pick_export_destination`, then `download_to_path`), and deliberately has no command that takes bytes from the page. As built, the download works in a browser and not in the desktop app. The options: post the bytes to a small backend endpoint that serves them back (no change to the shell), add a save command to the shell, or offer the download in the browser only.
+- **Whether MusicXML should carry a real tab staff** (found while checking task 6.1 against MuseScore 4). Built as decision 7 says: a `<string>` and `<fret>` on each placed note of the ordinary staff, and the tuning and capo in `<staff-details>`. music21 reads the frets back. MuseScore does not: on a staff that is not a tab staff it ignores `<fret>` and the tuning, and prints each `<string>` as a circled string number over the note. So the scenario "adds a tab staff to the guitar part and the fret numbers match" does not hold there. Writing the part as two staves, notation and a tab staff with a tab clef, is the form notation programs do honour.

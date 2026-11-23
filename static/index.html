@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/css/eq.css" />
     <link rel="stylesheet" href="/css/fx.css" />
     <link rel="stylesheet" href="/css/mastering.css" />
+    <link rel="stylesheet" href="/css/notation.css" />
     <link rel="stylesheet" href="/css/video.css" />
     <link rel="stylesheet" href="/css/karaoke.css" />
     <link rel="stylesheet" href="/css/streamer.css" />
@@ -904,6 +905,11 @@
 
         </div><!-- /#lanes -->
 
+      <!-- The Notation drawer (static/js/notation/notation.js): under the
+           lanes, in the layout, so the waveform, the loop and the transport
+           stay in reach while a part is read. Built on first open. -->
+      <section class="notation-drawer" id="notation-drawer" hidden aria-label="Notation"></section>
+
       <!-- The Master drawer (static/js/masterPanel.js): between the lanes and
            the footer, in the layout, so the lanes give it room rather than
            being covered. Built on first open. -->
@@ -1137,6 +1143,18 @@
               <span class="viz-chip-labs" data-i18n="viz.labs">Labs</span>
             </button>
             <!-- viz:end -->
+            <!-- Opens the Notation drawer (static/js/notation/notation.js): the
+                 transcribed stems as sheet music and tab, following the
+                 player. The icon alone, like the Master chip beside it; the
+                 name is in the tooltip and the aria-label. Hidden until
+                 initNotation finds that transcription can run here (it cannot
+                 on Intel Macs), so it never flashes where there is nothing
+                 to read. -->
+            <button class="track-chip notation-chip" id="t-notation-btn" type="button" hidden aria-expanded="false" aria-controls="notation-drawer" title="Notation" aria-label="Notation">
+              <svg class="notation-chip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>
+              </svg>
+            </button>
             <button class="track-chip master-chip" id="t-master-btn" type="button" aria-expanded="false" aria-controls="master-drawer" title="Master" aria-label="Master">
               <svg class="master-chip-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M2 4h20" stroke-dasharray="2 2"/>
