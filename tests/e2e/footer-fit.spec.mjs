@@ -67,10 +67,11 @@ test.describe("footer fit", () => {
     // strip is narrower than a real six-stem track's.
     //
     // 1792 rather than 1728 since Record and its options arrow joined the
-    // transport cluster (62px), and 1840 since the Master pill joined Export
-    // Mix (36px and its 8px gap): the same "a little short" row, one control
-    // wider each time.
-    await page.setViewportSize({ width: 1840, height: 900 });
+    // transport cluster (62px), 1840 since the Master pill joined Export
+    // Mix (36px and its 8px gap), and 1884 since the Notation pill joined
+    // them (another 36px and 8px gap): the same "a little short" row, one
+    // control wider each time.
+    await page.setViewportSize({ width: 1884, height: 900 });
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page, { revealOptions: false });
 

@@ -26,6 +26,9 @@ logger = logging.getLogger("stemdeck.transcription")
 
 DIR_NAME = "transcription"
 VERSION = 1
+# Files in the folder that are not a stem's notes: the song's tablature
+# choices (app/core/tab_files.py). No stem is named "tab".
+NOT_STEMS = frozenset({"tab"})
 
 
 def transcription_dir(stems_dir: Path) -> Path:
@@ -94,4 +97,8 @@ def transcribed_stems(stems_dir: Path) -> list[str]:
     folder = transcription_dir(stems_dir)
     if not folder.is_dir():
         return []
-    return sorted(p.stem for p in folder.glob("*.json") if not p.name.startswith("."))
+    return sorted(
+        p.stem
+        for p in folder.glob("*.json")
+        if not p.name.startswith(".") and p.stem not in NOT_STEMS
+    )

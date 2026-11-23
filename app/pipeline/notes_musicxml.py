@@ -14,17 +14,33 @@ The result is a correct starting point for a notation program, not an
 engraving: no voice-leading choices, no enharmonic spelling beyond the key
 signature.
 
+A guitar or bass part also carries its tablature (openspec change
+add-alphatab-notation): under its staff of notation, a tab staff with the
+string and fret of every note the fingering placed
+(app/pipeline/fingering.py), tuned and capoed as the song's tab choices say,
+so a notation program shows the same frets as StemDeck's Notation view. The
+notation staff keeps every note; a note the instrument cannot play is a rest
+on the tab staff. music21 cannot write a tab staff, so it is added to the
+finished document (``_add_tablature``). The same pass renumbers the voices of
+a bar, which music21 counts from 0 and notation programs from 1.
+
 music21 is slow to import, so it is imported inside the function. Nothing at
 startup may import this module's dependency (tests/test_transcription_imports.py).
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
+import xml.etree.ElementTree as ET
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from fractions import Fraction
+from typing import TYPE_CHECKING
 
+from app.pipeline.note_values import chord_spans, drum_spans
 from app.pipeline.quantize import Bar, QNote
+
+if TYPE_CHECKING:
+    from app.pipeline.notes_alphatex import TabStaff
 
 # General MIDI percussion key -> (staff position as a treble-clef pitch,
 # notehead). The usual drum-kit layout: kick in the bottom space, snare in the
@@ -97,23 +113,15 @@ def _clef(stem: str):
 def _drum_events(
     notes: Sequence[QNote], unit: Fraction, steps_per_beat: int
 ) -> list[tuple[Fraction, object]]:
-    """Drum hits have no length of their own. Each is written as lasting until
-    the next hit or the end of its beat, whichever comes first, which is how a
-    drum part is read (a hit on the beat is a quarter, not a sixteenth and
-    three rests). Hits on the same step are one percussion chord."""
+    """Each drum span (app.pipeline.note_values.drum_spans) as a percussion
+    note, or a percussion chord when several kit pieces are hit together."""
     from music21 import duration, note, percussion
 
-    by_step: dict[int, list[QNote]] = defaultdict(list)
-    for n in notes:
-        by_step[n.step].append(n)
     out: list[tuple[Fraction, object]] = []
-    steps = sorted(by_step)
-    for i, step in enumerate(steps):
-        beat_end = (step // steps_per_beat + 1) * steps_per_beat
-        until = min(beat_end, steps[i + 1]) if i + 1 < len(steps) else beat_end
+    for step, steps, members in drum_spans(notes, steps_per_beat):
         hits = []
         seen: set[tuple[str, str]] = set()
-        for n in sorted(by_step[step], key=lambda q: q.pitch):
+        for n in members:
             display, head = _DRUM_MAP.get(n.pitch, _DRUM_DEFAULT)
             if (display, head) in seen:
                 continue
@@ -122,25 +130,293 @@ def _drum_events(
             hit.notehead = head
             hits.append(hit)
         element = hits[0] if len(hits) == 1 else percussion.PercussionChord(hits)
-        element.duration = duration.Duration((until - step) * unit)
+        element.duration = duration.Duration(steps * unit)
         out.append((step * unit, element))
     return out
 
 
 def _pitched_events(notes: Sequence[QNote], unit: Fraction) -> list[tuple[Fraction, object]]:
-    """Notes that start together and last equally long are one chord."""
+    """Each chord span (app.pipeline.note_values.chord_spans) as a note or a
+    chord. Spans that overlap are put into voices by music21."""
     from music21 import chord, duration, note
 
-    groups: dict[tuple[int, int], list[QNote]] = defaultdict(list)
-    for n in notes:
-        groups[(n.step, n.steps)].append(n)
     out: list[tuple[Fraction, object]] = []
-    for (step, steps), members in sorted(groups.items()):
+    for step, steps, members in chord_spans(notes):
         pitches = sorted({m.pitch for m in members})
         element = note.Note(pitches[0]) if len(pitches) == 1 else chord.Chord(pitches)
         element.duration = duration.Duration(steps * unit)
         out.append((step * unit, element))
     return out
+
+
+_STEPS = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+_STEP_OF = ("C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B")
+_ALTER_OF = (0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
+# MusicXML fixes the order of the children of <attributes> and of <note>. A
+# new child goes before the first of the elements that must follow it.
+_AFTER_STAVES = (
+    "part-symbol",
+    "instruments",
+    "clef",
+    "staff-details",
+    "transpose",
+    "for-part",
+    "directive",
+    "measure-style",
+)
+_AFTER_STAFF_DETAILS = ("transpose", "for-part", "directive", "measure-style")
+_AFTER_VOICE = (
+    "type",
+    "dot",
+    "accidental",
+    "time-modification",
+    "stem",
+    "notehead",
+    "notehead-text",
+    "staff",
+    "beam",
+    "notations",
+    "lyric",
+    "play",
+    "listen",
+)
+_AFTER_STAFF = ("beam", "notations", "lyric", "play", "listen")
+# What a tab note does not carry: tablature shows a fret on a string, not a
+# notehead with an accidental and a stem.
+_NOT_ON_TAB = ("accidental", "stem", "notehead", "notehead-text", "beam", "staff")
+# The staff of notation is staff 1 and the tab staff is staff 2. By MusicXML's
+# convention a part's second staff uses voices 5 to 8.
+_TAB_STAFF = 2
+_TAB_VOICE_SHIFT = 4
+_XML_HEAD = b'<?xml version="1.0" encoding="utf-8"?>\n'
+
+
+def _midi(pitch: ET.Element) -> int:
+    step = _STEPS[(pitch.findtext("step") or "C").strip()]
+    alter = round(float(pitch.findtext("alter") or 0))
+    return 12 * (int(pitch.findtext("octave") or 4) + 1) + step + alter
+
+
+def _before(parent: ET.Element, followers: tuple[str, ...]) -> int:
+    """Where a new child of ``parent`` goes: before the first of ``followers``."""
+    return next((i for i, e in enumerate(parent) if e.tag in followers), len(parent))
+
+
+def _set_voice(note: ET.Element, shift: int = 0) -> None:
+    """Give ``note`` a voice number, moved up by ``shift``. A part music21
+    wrote in one voice has none, and two staves cannot be told apart without."""
+    voice = note.find("voice")
+    if voice is None:
+        voice = ET.Element("voice")
+        voice.text = "1"
+        note.insert(_before(note, _AFTER_VOICE), voice)
+    voice.text = str(int(voice.text or 1) + shift)
+
+
+def _set_staff(note: ET.Element, number: int) -> None:
+    staff = ET.Element("staff")
+    staff.text = str(number)
+    note.insert(_before(note, _AFTER_STAFF), staff)
+
+
+def _tab_note(note: ET.Element, spot: tuple[int, int], first: bool) -> ET.Element:
+    """``note`` as it is written on the tab staff: the same pitch and length,
+    with its string and fret. ``first`` is whether it leads its chord."""
+    copy = deepcopy(note)
+    for child in [c for c in copy if c.tag in _NOT_ON_TAB]:
+        copy.remove(child)
+    chord = copy.find("chord")
+    if first and chord is not None:
+        copy.remove(chord)
+    elif not first and chord is None:
+        copy.insert(0, ET.Element("chord"))
+    _set_voice(copy, _TAB_VOICE_SHIFT)
+    _set_staff(copy, _TAB_STAFF)
+    notations = copy.find("notations")
+    if notations is None:
+        notations = ET.SubElement(copy, "notations")
+    technical = ET.SubElement(notations, "technical")
+    ET.SubElement(technical, "string").text = str(spot[0])
+    ET.SubElement(technical, "fret").text = str(spot[1])
+    return copy
+
+
+def _tab_rest(note: ET.Element) -> ET.Element:
+    """A rest on the tab staff as long as ``note``: where the notation staff
+    has a rest, or a note the instrument cannot play."""
+    rest = ET.Element("note")
+    ET.SubElement(rest, "rest")
+    for child in note:
+        if child.tag in ("duration", "voice", "type", "dot", "time-modification"):
+            rest.append(deepcopy(child))
+    _set_voice(rest, _TAB_VOICE_SHIFT)
+    _set_staff(rest, _TAB_STAFF)
+    return rest
+
+
+def _tab_attributes(attributes: ET.Element, tab: TabStaff) -> None:
+    """Make the part two staves: the notation it has, and under it a tab
+    staff with a line for each string, tuned as the instrument is. Line 1 is
+    the lowest string."""
+    staves = ET.Element("staves")
+    staves.text = "2"
+    attributes.insert(_before(attributes, _AFTER_STAVES), staves)
+    for clef in attributes.findall("clef"):
+        clef.set("number", "1")
+    tab_clef = ET.Element("clef", {"number": str(_TAB_STAFF)})
+    ET.SubElement(tab_clef, "sign").text = "TAB"
+    ET.SubElement(tab_clef, "line").text = "5"
+    details = ET.Element("staff-details", {"number": str(_TAB_STAFF)})
+    ET.SubElement(details, "staff-lines").text = str(len(tab.tuning))
+    for line, open_pitch in enumerate(tab.tuning, start=1):
+        tuning = ET.SubElement(details, "staff-tuning", {"line": str(line)})
+        ET.SubElement(tuning, "tuning-step").text = _STEP_OF[open_pitch % 12]
+        if _ALTER_OF[open_pitch % 12]:
+            ET.SubElement(tuning, "tuning-alter").text = str(_ALTER_OF[open_pitch % 12])
+        ET.SubElement(tuning, "tuning-octave").text = str(open_pitch // 12 - 1)
+    if tab.capo:
+        ET.SubElement(details, "capo").text = str(tab.capo)
+    at = _before(attributes, _AFTER_STAFF_DETAILS)
+    attributes.insert(at, details)
+    attributes.insert(at, tab_clef)
+
+
+def _number_voices_from_one(root: ET.Element) -> bool:
+    """music21 numbers the voices of a bar from 0. MusicXML counts them from
+    1, and MuseScore reads a part that has a voice 0 as empty bars: every note
+    of a guitar or piano part gone, with no error. Shift such a part's voices
+    up by one. Returns whether anything changed."""
+    changed = False
+    for part in root.findall("part"):
+        voices = [v for v in part.iter("voice") if (v.text or "").strip().isdigit()]
+        if not any(int(v.text) == 0 for v in voices):
+            continue
+        for voice in voices:
+            voice.text = str(int(voice.text) + 1)
+        changed = True
+    return changed
+
+
+def _add_tablature(root: ET.Element, tabs: Mapping[str, TabStaff], steps_per_beat: int) -> None:
+    """Give each fretted part in ``tabs`` a tab staff under its notation.
+
+    The notation music21 wrote becomes staff 1 and is left as it is, every
+    note on it. Staff 2 is written here, bar for bar: each note the fingering
+    placed, with its string and fret, and a rest wherever the notation has a
+    rest or a note the instrument cannot play. A notation program shows the
+    tablature as soon as the file opens, with the frets StemDeck's Notation
+    view draws.
+
+    (A string and fret on the notes of an ordinary staff, which is all the
+    format asks for, is not enough: MuseScore 4 ignores the fret there and
+    prints the string as a circled number over every note.)
+
+    A written note is matched to its fingering by where it starts and its
+    pitch. A long note that music21 split into tied notes has the same string
+    and fret on every piece."""
+    names = {
+        part.get("id"): (part.findtext("part-name") or "").strip()
+        for part in root.iter("score-part")
+    }
+    for part in root.findall("part"):
+        tab = tabs.get(names.get(part.get("id"), ""))
+        if tab is None:
+            continue
+        where = {(p.note.step, p.note.pitch): (p.string, p.fret) for p in tab.placed}
+        held: dict[int, tuple[int, int]] = {}  # a tied note's place, by pitch
+        divisions = 1
+        bar_start = Fraction(0)  # in beats, from the start of the song
+        two_staves = False
+        for measure in part.findall("measure"):
+            cursor = last_onset = furthest = 0  # in divisions, from the bar line
+            on_tab: list[ET.Element] = []
+            # The notes of the chord being read, each with its place or None.
+            chord: list[tuple[ET.Element, tuple[int, int] | None]] = []
+
+            def flush(into: list[ET.Element] = on_tab, group: list = chord) -> None:
+                kept = [(note, spot) for note, spot in group if spot is not None]
+                if kept:
+                    into.extend(_tab_note(n, s, first=i == 0) for i, (n, s) in enumerate(kept))
+                elif group:
+                    into.append(_tab_rest(group[0][0]))
+                group.clear()
+
+            for element in list(measure):
+                if element.tag == "attributes":
+                    if element.findtext("divisions"):
+                        divisions = int(element.findtext("divisions") or 1)
+                    if not two_staves:
+                        _tab_attributes(element, tab)
+                        two_staves = True
+                    else:
+                        for clef in element.findall("clef"):
+                            clef.set("number", "1")
+                    continue
+                if element.tag not in ("note", "backup", "forward"):
+                    continue
+                length = int(element.findtext("duration") or 0)
+                if element.tag in ("backup", "forward"):
+                    flush()
+                    cursor += length if element.tag == "forward" else -length
+                    furthest = max(furthest, cursor)
+                    on_tab.append(deepcopy(element))
+                    continue
+                # A note of a chord starts where the chord's first note did.
+                if element.find("chord") is None:
+                    flush()
+                    last_onset = cursor
+                    cursor += length
+                    furthest = max(furthest, cursor)
+                spot = None
+                pitch = element.find("pitch")
+                if pitch is not None:
+                    number = _midi(pitch)
+                    ties = {tie.get("type") for tie in element.findall("tie")}
+                    if "stop" in ties and number in held:
+                        spot = held[number]
+                    else:
+                        beat = bar_start + Fraction(last_onset, divisions)
+                        spot = where.get((round(beat * steps_per_beat), number))
+                    if "start" in ties and spot is not None:
+                        held[number] = spot
+                    elif "start" not in ties:
+                        held.pop(number, None)
+                chord.append((element, spot))
+                _set_voice(element)
+                _set_staff(element, 1)
+            flush()
+            if furthest > 0 and on_tab:
+                # Back to the bar line, then the same bar on the tab staff.
+                back = ET.Element("backup")
+                ET.SubElement(back, "duration").text = str(furthest)
+                # A closing bar line stays the last thing in the bar.
+                at = next(
+                    (
+                        i
+                        for i, e in enumerate(measure)
+                        if e.tag == "barline" and e.get("location") != "left"
+                    ),
+                    len(measure),
+                )
+                for offset, new in enumerate([back, *on_tab]):
+                    measure.insert(at + offset, new)
+            bar_start += Fraction(furthest, divisions)
+
+
+def _finish(document: bytes, tabs: Mapping[str, TabStaff], steps_per_beat: int) -> bytes:
+    """What music21 cannot be asked to write, put into its document: voices
+    counted from 1, and the tablature of the fretted parts. A document that
+    needs neither is returned as it was."""
+    root = ET.fromstring(document)
+    renumbered = _number_voices_from_one(root)
+    if tabs:
+        _add_tablature(root, tabs, steps_per_beat)
+    if not renumbered and not tabs:
+        return document
+    ET.indent(root, space="  ")
+    # The declaration and doctype music21 wrote, then the changed tree.
+    head = document[: document.index(b"<score-partwise")]
+    return (head or _XML_HEAD) + ET.tostring(root, encoding="utf-8")
 
 
 def musicxml_score(
@@ -152,10 +428,13 @@ def musicxml_score(
     bpm: float | None = None,
     key_name: str | None = None,
     scale: str | None = None,
+    tabs: Mapping[str, TabStaff] | None = None,
 ) -> bytes:
     """The score as MusicXML bytes. ``parts`` maps a stem name to its
     quantised notes, ``bars`` are the grid's bars, ``steps_per_beat`` the
-    resolution the notes were quantised at."""
+    resolution the notes were quantised at. ``tabs`` gives the tuning, capo
+    and fingering of each fretted stem, whose part then has a tab staff under
+    its notation."""
     from music21 import duration, metadata, meter, note, stream, tempo
     from music21.musicxml.m21ToXml import GeneralObjectExporter
 
@@ -210,4 +489,6 @@ def musicxml_score(
         part.makeRests(fillGaps=True, inPlace=True, hideRests=False)
         score.insert(0, part)
 
-    return GeneralObjectExporter(score).parse()
+    document = GeneralObjectExporter(score).parse()
+    fretted = {stem: tab for stem, tab in (tabs or {}).items() if stem in parts}
+    return _finish(document, fretted, steps_per_beat)

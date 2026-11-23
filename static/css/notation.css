@@ -1,0 +1,320 @@
+/* The Notation view (static/js/notation/notation.js): a drawer under the
+   lanes that shows the transcribed stems as sheet music and tab.
+
+   The chrome is the studio's own (the beat grid toolbar's buttons and fields,
+   the Master drawer's place in the layout). The score itself is drawn by
+   alphaTab on a sheet of paper: black on near-white, whatever the app's
+   theme, because notation is read as print. */
+
+/* ── The chip in the footer ── */
+
+.notation-chip {
+  width: 36px;
+  padding: 0;
+  justify-content: center;
+  color: var(--muted);
+}
+.notation-chip[hidden] { display: none; }
+.notation-chip:hover { color: var(--fg); }
+.notation-chip.on,
+.notation-chip[aria-expanded="true"] {
+  color: var(--accent);
+  background: var(--panel-3);
+  border-color: var(--gold-line);
+}
+.notation-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* ── The drawer ── */
+
+.notation-drawer {
+  --notation-drawer-h: 360px;
+  --notation-paper: #f7f5ef;
+  --notation-ink: #14181c;
+  position: relative;
+  flex: 0 0 var(--notation-drawer-h);
+  height: var(--notation-drawer-h);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+  border-top: 1px solid var(--border-strong);
+  background: var(--eq-panel-bg);
+  overflow: hidden;
+}
+.notation-drawer[hidden] { display: none; }
+.notation-drawer [hidden] { display: none !important; }
+
+/* The top edge is the handle: drag it, or focus it and use the arrow keys. */
+.notation-resize {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: ns-resize;
+  z-index: 3;
+  touch-action: none;
+}
+.notation-resize::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 36px;
+  height: 3px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  transition: background var(--t-fast);
+}
+.notation-resize:hover::after,
+.notation-resize:focus-visible::after { background: var(--accent); }
+.notation-resize:focus-visible { outline: none; }
+
+/* ── Toolbar rows ── */
+
+.notation-bar,
+.notation-tabs,
+.notation-notices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--fg-2);
+  flex: 0 0 auto;
+}
+/* Room on the right for the close button, which stays in the corner when
+   the row wraps in a narrow window. */
+.notation-bar { padding-top: 10px; padding-right: 44px; background: var(--panel); }
+.notation-tabs { background: var(--panel); }
+.notation-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.notation-barno {
+  min-width: 52px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.notation-spacer { flex: 1; min-width: 4px; }
+
+.notation-stems { display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.notation-stem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.notation-stem:hover { background: var(--panel-3); color: var(--fg); }
+.notation-stem input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+
+.notation-field { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.notation-select,
+.notation-tab-capo,
+.notation-tab-custom {
+  height: 26px;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 0 6px;
+}
+.notation-tab-capo { width: 52px; font-family: var(--font-mono); }
+.notation-tab-custom { width: 190px; font-family: var(--font-mono); }
+.notation-tab-custom[aria-invalid="true"] { border-color: var(--danger); }
+.notation-select:focus-visible,
+.notation-tab-capo:focus-visible,
+.notation-tab-custom:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+.notation-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  box-sizing: border-box;
+  padding: 0 9px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--fg-2);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.notation-btn:hover:not(:disabled):not(.is-disabled) { background: var(--panel-3); color: var(--fg); }
+.notation-btn:disabled,
+.notation-btn.is-disabled { opacity: 0.4; cursor: not-allowed; }
+.notation-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+.notation-zoom { display: inline-flex; align-items: center; gap: 4px; }
+.notation-zoom-btn { width: 26px; padding: 0; font-size: 14px; line-height: 1; }
+.notation-zoom-value {
+  min-width: 40px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+/* The downloads: one button that opens a short menu under it. */
+.notation-downloads { position: relative; }
+.notation-downloads-btn { list-style: none; gap: 6px; user-select: none; }
+.notation-downloads-btn::-webkit-details-marker { display: none; }
+.notation-downloads-btn::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-top: -3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+.notation-downloads[open] .notation-downloads-btn { background: var(--panel-3); color: var(--fg); }
+.notation-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  padding: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.notation-menu.from-left { left: 0; right: auto; }
+.notation-menu-item {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.notation-menu-item:hover:not(:disabled):not(.is-disabled) { background: var(--panel-3); }
+.notation-menu-item:disabled,
+.notation-menu-item.is-disabled { opacity: 0.4; cursor: not-allowed; }
+.notation-menu-item:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+
+.notation-close {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.notation-close:hover { background: var(--panel-3); color: var(--fg); }
+.notation-close:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* One group per fretted stem: how it is drawn, its tuning and its capo. */
+.notation-tabs { column-gap: 22px; }
+.notation-tab { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.notation-tab-name { font-weight: 600; color: var(--fg); }
+.notation-tab-strings { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+/* Notes left off the tab, and the tuning that would reach them. */
+.notation-notices { background: rgba(244, 183, 64, 0.08); color: var(--accent); }
+.notation-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; line-height: 1.45; }
+.notation-notice.is-error { color: var(--danger); }
+.notation-use { color: var(--accent); border-color: var(--gold-line); }
+
+/* ── The sheet ── */
+
+.notation-body { position: relative; flex: 1 1 auto; min-height: 72px; display: flex; }
+.notation-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  background: var(--notation-paper);
+  color: var(--notation-ink);
+}
+.notation-score { min-height: 100%; }
+
+/* alphaTab's cursor: the bar being heard, and the beat within it. */
+.notation-score .at-cursor-bar { background: rgba(244, 183, 64, 0.22); }
+.notation-score .at-cursor-beat { background: #c2410c; width: 3px; }
+.notation-score .at-selection div { background: rgba(244, 183, 64, 0.18); }
+.notation-score .at-highlight * { fill: #c2410c; stroke: #c2410c; }
+
+.notation-empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 24px;
+  text-align: center;
+}
+.notation-empty-text { margin: 0; max-width: 62ch; font-size: 13px; line-height: 1.55; color: var(--fg-2); }
+.notation-empty-action { cursor: pointer; font: inherit; font-size: 13px; padding: 8px 18px; }
+
+.notation-busy {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(11, 15, 18, 0.82);
+  color: var(--fg-2);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.notation-foot {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 5px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.notation-foot-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.notation-foot-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
