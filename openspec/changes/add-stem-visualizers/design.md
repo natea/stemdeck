@@ -140,6 +140,33 @@ Installed in the first task group, into the git-ignored `.claude/skills/`, after
 
 Each visualization's folder keeps a `LOOK.md`: its art direction, the reference or target image's source, and the critic's last verdict. That is also the evidence for the keep-or-remove review, and it is deleted with the folder.
 
+### Installed tooling
+
+Vetted on 2026-11-22 with `vettd 0.9.3` (`vettd scan folder <staged copy> --deep`), each staged outside any skills folder before install.
+
+| Skill set | Source | Commit | Grade | Findings |
+|---|---|---|---|---|
+| dream-loop | `github.com/achimala/dream-loop` | `9bddb901f7d071cfefdd21e264267c757177a9df` | B | 1 medium, VTD-0088: `references/fal.md` links to external URLs (fal.ai documentation). No critical or high. |
+| mengto 3D | `github.com/mengto/skills`, folder `agent-skills/3d` (29 skills, 200 files, 19 MB) | `821d22aa0d05881b22388daa4d8ef9ee17d00242` | 13 skills A, 15 skills B, 1 skill F | B grades: VTD-0088 (external URLs in references) on each of the 15. One low, VTD-0113 (broad description) on `3d-wood-material`. **F: `3d-ultra-realistic-water`**, 2 critical VTD-0079 ("obfuscated external URL" in `demo/build.mjs` and `demo/index.html`) and 1 medium VTD-0081 (zero-width space at `demo/build.mjs:39`). |
+
+The blocking finding on `3d-ultra-realistic-water` was read by hand: the only URL inside the flagged base64 is `http://www.w3.org/2000/svg`, the namespace of an inlined SVG image, and the zero-width space is the placeholder in `<title>​</title>`. It reads as a false positive, but the vetting policy refuses any critical finding without a person's decision, and this work has no use for a water recipe. Decision asked of the project owner; until it is answered that one skill is not installed.
+
+### Target images for dream-loop (task 1.3)
+
+No image generator is reachable from this environment (no fal, OpenAI or Gemini key, and no image tool in the session), and no reference images were supplied. Each scene is therefore built against **written art direction** in its `LOOK.md`, and the dream-loop judge scores screenshots against that text with dream-loop's own rubric (composition, lighting, materials, details). If the owner supplies a reference image for a scene, it replaces the text as the target and `LOOK.md` records its source.
+
+### Vendored Three.js and the spike (tasks 1.4 and 1.5)
+
+- Pinned **three 0.187.0** (current on 2026-11-22), from the npm tarball, checked against its published SHA-512. `scripts/vendor-three.mjs` writes 13 files; `--check` verifies them against `VERSION`. `OrbitControls`, which section 5 expected, is not vendored: no scene ended up using it (every camera is driven by the song), and the rule there is to vendor only what the scenes use.
+- **Size is 2.2 MB, not "well under 2 MB".** This release no longer ships minified builds, and the core is split in two (`three.core.js` 1.47 MB, `three.module.js` 0.66 MB). Minifying here would add a build tool and a second modification to upstream files, so the unminified files are vendored as they are. They load only when the Visualizer first opens.
+- The spike (a throwaway page, since deleted) lazily imported the vendored module and four add-ons and drew 20,000 instanced boxes with bloom at 1280 by 800, with the CSP header unchanged, on an Apple M5:
+  - Chromium (Playwright, Metal): 120 to 143 frames per second, no console error, no CSP violation, no off-origin request.
+  - WKWebView, the system webview the macOS desktop shell is built on, in a bare window: 71 frames per second, no error, no CSP violation. This was a WKWebView loading the page from the local backend, not a full build of the desktop app; the desktop shell was not rebuilt for the spike.
+
+### A scene's id must be a name nothing else uses
+
+The layout above lists the sixth scene's folder as `drive/`, and task 8.1 says `scenes/drive/`. It was built as **`drive-the-song/`** with the id `drive-the-song` instead. The app already uses the word "drive" (the distortion pedal's `fx.pedal.drive` strings in ten languages, and comments), so after removing a scene called `drive` a search for its name would still find dozens of lines, and the removal script could not tell residue from coincidence. The other five ids occur nowhere outside their own folder and the registry. `scripts/viz-remove.mjs` refuses to trust a search for an id shorter than this for the same reason; `docs/visualizers.md` says to pick an id of two or more hyphenated words.
+
 ## Risks / Trade-offs
 
 - **[Six scenes is six times the work for something that may be thrown away]** → The host and data layer are built once and are most of the engineering. Scenes are built in order of confidence (terrain, slit-scan, galaxy first), and the review can stop the series early.

@@ -34,6 +34,9 @@ import { initMasterPanel } from "./masterPanel.js";
 import { initModeUi } from "./modeUi.js";
 import { initKaraoke, isKaraokeOpen } from "./karaoke/karaoke.js";
 import { initStreamer, isStreamerOpen, isStreamerTakeOpen } from "./streamer/streamer.js";
+// viz:begin
+import { initVisualizer } from "./viz/host.js";
+// viz:end
 import { isRecording } from "./capture/recordUi.js";
 import { initMixMode } from "./mixMode.js";
 import { initModeStems } from "./modeStems.js";
@@ -540,6 +543,9 @@ initModeStems();
 initStemsControl();
 initKaraoke();
 initStreamer();
+// viz:begin
+initVisualizer();
+// viz:end
 // Re-measure after a language switch. Measured across en/fr/de/pl the strip
 // came out the same width in all four, because the group labels are 10px
 // uppercase and narrower than the controls under them, so this is not the
