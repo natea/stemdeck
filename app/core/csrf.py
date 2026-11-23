@@ -82,6 +82,9 @@ _RAW_BODY_ROUTES: tuple[tuple[str, re.Pattern[str], str | None], ...] = (
     ("PUT", re.compile(r"^/api/jobs/[^/]+/takes/[^/]+/parts/[^/]+$"), None),
     # An effects chain print arrives as raw WAV bytes (app/core/fx_prints.py).
     ("PUT", re.compile(r"^/api/jobs/[^/]+/fx-prints/[^/]+/parts$"), "application/octet-stream"),
+    # A Guitar Pro file the Notation view made arrives as its raw bytes
+    # (app/api/transcription.py).
+    ("POST", re.compile(r"^/api/jobs/[^/]+/transcription\.gp$"), "application/octet-stream"),
 )
 
 # Kept generic on purpose: the reason is for the log, not for the caller.

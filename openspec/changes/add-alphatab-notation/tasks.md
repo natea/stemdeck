@@ -39,15 +39,17 @@
 
 ## 6. Exports
 
-- [x] 6.1 Add string, fret, tuning and capo to the MusicXML writer for fretted parts; verify tests re-parse the output and find a string and fret on each placed note, none on an unplaced one, and every note still present on the staff
-- [ ] 6.2 Add the Guitar Pro download using alphaTab's Guitar Pro 7 exporter for the stems shown, named after the song; verify a Playwright test downloads the file, re-imports the bytes with alphaTab and asserts the track count, tuning, capo and first bar's frets
+- [x] 6.1 Add a tab staff with string, fret, tuning and capo to the MusicXML writer for fretted parts; verify tests re-parse the output and find a string and fret on each placed note of the tab staff, no unplaced note on it, and every note still present on the staff of notation
+- [x] 6.2 Add the Guitar Pro download using alphaTab's Guitar Pro 7 exporter for the stems shown, named after the song, saved through a backend endpoint that holds the file so the desktop app can save it too; verify a Playwright test downloads the file, re-imports the bytes with alphaTab and asserts the track count, tuning, capo and first bar's frets, and that pytest covers the endpoint's refusals
 - [x] 6.3 Put the four downloads (MIDI as played, MIDI quantised, MusicXML, Guitar Pro) in the view, scoped to the stems shown; verify a Playwright test checks each link's stems parameter and file name
 
 ## 7. Integration checks
 
 - [ ] 7.1 Run a real song end to end on Apple Silicon in the browser and in the desktop app: transcribe, open the view, play at full and half speed, loop four bars, switch guitar to drop D, export Guitar Pro and MusicXML; verify the cursor stays on the bar being heard to the end of the song and both files open in MuseScore and a tab editor
+  - Done in a browser (Chromium) on a real song of 126 bars: full speed, half speed, a 4-bar loop, drop D, both exports, and both files opened in MuseScore 4. Still for a person: the packaged desktop app, and a dedicated tab editor (none is installed on the build machine).
 - [x] 7.2 Disconnect the network and reload; verify the view still draws the score with its music font
 - [ ] 7.3 Run `uv run ruff check app/ tests/`, `uv run ruff format --check app/ tests/`, `uv run pytest tests/ -q`, `npm run test:js` and `npm run test:e2e`; verify all pass
+  - Run on the final code, 2026-11-23. ruff check and format: clean. `npm run test:js`: exit 0. pytest: 4,543 passed, 3 failed, all three `test_demucs_worker_*` in `tests/test_pipeline_workers.py`, which fail on `feat/stem-transcription` itself (commit `eb9e6b4` imports `prevent_clip`, which the test's fake `demucs` lacks). Browser suite, with the parallel runner (`npm run test:e2e:parallel -- --shards 3`): 1,107 passed, 7 skipped, 11 failed, none in `notation.spec.mjs` (34 of 34). Of the 11, 9 pass when run on their own, and `karaoke.spec.mjs:210` and `panel-toggles.spec.mjs:80` fail 2 runs in 3 on a clean copy of `e390fc2` as well. Left unticked because the suites are not all green, for reasons outside this change.
 - [x] 7.4 Run `openspec validate add-alphatab-notation --strict`; verify it reports no errors
 
 ## Workflow follow-up

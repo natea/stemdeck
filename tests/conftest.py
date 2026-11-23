@@ -108,6 +108,7 @@ def _isolate_export_caches(tmp_path, monkeypatch):
     monkeypatch.setattr("app.api.stems._MIXDOWN_CACHE_DIR", tmp_path / "_cache" / "mixdown")
     monkeypatch.setattr("app.api.stems._CLICK_CACHE_DIR", tmp_path / "_cache" / "click")
     monkeypatch.setattr("app.api.stems._FX_PRINT_DIR", tmp_path / "_cache" / "fx-print")
+    monkeypatch.setattr("app.api.transcription._GUITAR_PRO_DIR", tmp_path / "_cache" / "guitar-pro")
 
 
 @pytest.fixture(autouse=True)

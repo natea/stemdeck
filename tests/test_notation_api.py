@@ -5,7 +5,11 @@ tasks 3.1 and 3.4).
 
 from __future__ import annotations
 
+import io
 import json
+import os
+import time
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,6 +24,7 @@ from app.core.transcription_files import transcribed_stems, write_notes
 JOB = "a1b2c3d4e5f6"
 TAB = f"/api/jobs/{JOB}/transcription/tab"
 SCORE = f"/api/jobs/{JOB}/transcription.alphatex"
+GUITAR_PRO = f"/api/jobs/{JOB}/transcription.gp"
 
 GUITAR_STANDARD = [40, 45, 50, 55, 59, 64]
 BASS_STANDARD = [28, 33, 38, 43]
@@ -461,3 +466,129 @@ def test_the_score_follows_an_edited_grid(client, jobs_dir):
     assert after["alphatex"] != before
     assert "\\ts (3 4)" in after["alphatex"]
     assert "\\sync (0 0 250)" in after["alphatex"]
+
+
+# --- The Guitar Pro file, held for download (task 6.2) ---------------------------
+
+
+def _gp_file(marker: bytes = b"<GPIF/>") -> bytes:
+    """Bytes shaped like a Guitar Pro 7 file: a zip with a score inside."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("VERSION", "7.0")
+        archive.writestr("Content/score.gpif", marker)
+    return buffer.getvalue()
+
+
+def _post_gp(client, data: bytes, url: str = GUITAR_PRO):
+    return client.post(url, content=data, headers={"Content-Type": "application/octet-stream"})
+
+
+def test_a_guitar_pro_file_made_by_the_view_is_held_and_downloaded(client, jobs_dir):
+    import app.api.transcription as api
+
+    _song(jobs_dir)
+    data = _gp_file()
+    r = _post_gp(client, data)
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == "no-store"
+    assert r.json() == {
+        "job_id": JOB,
+        "url": GUITAR_PRO,
+        "file_name": "Blue_in_Green.gp",
+        "bytes": len(data),
+    }
+    got = client.get(GUITAR_PRO)
+    assert got.status_code == 200
+    assert got.content == data
+    assert got.headers["content-disposition"] == 'attachment; filename="Blue_in_Green.gp"'
+    assert got.headers["content-type"] == "application/octet-stream"
+    assert got.headers["cache-control"] == "no-store"
+    # Kept outside the song's folder, whole, with nothing left half-written.
+    held = list(api._GUITAR_PRO_DIR.iterdir())
+    assert [p.name for p in held] == [f"{JOB}.gp"]
+    assert not (jobs_dir / JOB / "stems" / "transcription").exists()
+    # It can be fetched again (a save dialog cancelled and reopened).
+    assert client.get(GUITAR_PRO).content == data
+
+
+def test_the_next_file_replaces_the_one_held(client, jobs_dir):
+    _song(jobs_dir)
+    _post_gp(client, _gp_file(b"<GPIF>first</GPIF>"))
+    second = _gp_file(b"<GPIF>second, in drop D</GPIF>")
+    assert _post_gp(client, second).status_code == 200
+    assert client.get(GUITAR_PRO).content == second
+
+
+def test_no_file_waiting_is_a_404(client, jobs_dir):
+    _song(jobs_dir)
+    r = client.get(GUITAR_PRO)
+    assert r.status_code == 404
+    assert "Notation view" in r.json()["detail"]
+
+
+def test_a_held_file_is_gone_after_a_few_minutes(client, jobs_dir):
+    import app.api.transcription as api
+
+    _song(jobs_dir)
+    _post_gp(client, _gp_file())
+    path = api._GUITAR_PRO_DIR / f"{JOB}.gp"
+    old = time.time() - api._GUITAR_PRO_KEEP_SEC - 5
+    os.utime(path, (old, old))
+    assert client.get(GUITAR_PRO).status_code == 404
+    assert not path.exists()
+
+
+def test_files_nobody_came_back_for_are_cleared_by_the_next_one(client, jobs_dir):
+    import app.api.transcription as api
+
+    _song(jobs_dir)
+    api._GUITAR_PRO_DIR.mkdir(parents=True)
+    stale = api._GUITAR_PRO_DIR / "000000000000.gp"
+    stale.write_bytes(_gp_file())
+    old = time.time() - api._GUITAR_PRO_KEEP_SEC - 5
+    os.utime(stale, (old, old))
+    assert _post_gp(client, _gp_file()).status_code == 200
+    assert [p.name for p in api._GUITAR_PRO_DIR.iterdir()] == [f"{JOB}.gp"]
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"",
+        b"not a zip at all",
+        b"PK\x03\x04 the start of a zip and nothing more",
+    ],
+)
+def test_only_a_guitar_pro_file_is_held(client, jobs_dir, data):
+    import app.api.transcription as api
+
+    _song(jobs_dir)
+    r = _post_gp(client, data)
+    assert r.status_code == 422
+    assert "Guitar Pro" in r.json()["detail"]
+    assert not api._GUITAR_PRO_DIR.exists() or not list(api._GUITAR_PRO_DIR.iterdir())
+
+
+def test_a_zip_that_is_not_a_guitar_pro_file_is_refused(client, jobs_dir):
+    _song(jobs_dir)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("readme.txt", "hello")
+    assert _post_gp(client, buffer.getvalue()).status_code == 422
+    assert client.get(GUITAR_PRO).status_code == 404
+
+
+def test_a_file_too_large_is_refused_before_it_is_read(client, jobs_dir):
+    _song(jobs_dir)
+    r = _post_gp(client, b"x" * (4 * 1024 * 1024 + 1))
+    assert r.status_code == 413
+    assert client.get(GUITAR_PRO).status_code == 404
+
+
+def test_the_held_file_needs_a_finished_song(client, jobs_dir):
+    assert _post_gp(client, _gp_file()).status_code == 404
+    assert client.get(GUITAR_PRO).status_code == 404
+    bad = "/api/jobs/not-an-id/transcription.gp"
+    assert _post_gp(client, _gp_file(), bad).status_code == 404
+    assert client.get(bad).status_code == 404

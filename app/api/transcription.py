@@ -6,6 +6,8 @@ out as JSON, MIDI or MusicXML.
     GET  /api/jobs/{id}/transcription.mid        a MIDI file
     GET  /api/jobs/{id}/transcription.musicxml   a MusicXML score
     GET  /api/jobs/{id}/transcription.alphatex   the score the Notation view draws
+    POST /api/jobs/{id}/transcription.gp         hold a Guitar Pro file the view made
+    GET  /api/jobs/{id}/transcription.gp         download it
     GET  /api/jobs/{id}/transcription/tab        tuning, capo and staff or tab
     PATCH /api/jobs/{id}/transcription/tab       change them
 
@@ -20,11 +22,14 @@ shows up in the next download with no model run.
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
+import os
 import time
+import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
@@ -33,6 +38,7 @@ from app.api.jobs import _job_state, _pipeline_lock
 from app.api.stems import _title_slug
 from app.core.beat_files import read_grid
 from app.core.config import (
+    CACHE_DIR,
     JOB_ID_RE,
     JOBS_DIR,
     QUANTIZE_DEFAULT_BEATS_PER_BAR,
@@ -71,6 +77,16 @@ router = APIRouter()
 
 _MIDI_TYPE = "audio/midi"
 _ALPHATEX_TYPE = "text/plain; charset=utf-8"
+_GUITAR_PRO_TYPE = "application/octet-stream"
+# Where a Guitar Pro file waits between being made in the browser and being
+# downloaded: one per song, replaced by the next, gone after a few minutes.
+_GUITAR_PRO_DIR = CACHE_DIR / "guitar-pro"
+_GUITAR_PRO_KEEP_SEC = 600
+# A real song's file is about 100 KB. The JSON body limit (app/main.py)
+# already refuses anything over 4 MB before it is read.
+_GUITAR_PRO_MAX_BYTES = 4 * 1024 * 1024
+# What a Guitar Pro 7 file is: a zip that holds its score under this name.
+_GUITAR_PRO_SCORE = "Content/score.gpif"
 _MUSICXML_TYPE = "application/vnd.recordare.musicxml+xml"
 # The order of tracks and staves when the request names none.
 _SCORE_ORDER = (
@@ -550,6 +566,93 @@ def get_transcription_alphatex(
         },
         headers=_NO_STORE,
     )
+
+
+def _guitar_pro_path(job_id: str) -> Path:
+    return _GUITAR_PRO_DIR / f"{job_id}.gp"
+
+
+def _is_guitar_pro(data: bytes) -> bool:
+    """Whether ``data`` is a Guitar Pro 7 file: a zip with a score in it."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            return _GUITAR_PRO_SCORE in archive.namelist()
+    except (zipfile.BadZipFile, OSError, ValueError):
+        return False
+
+
+def _drop_stale_guitar_pro(now: float) -> None:
+    """Remove held files nobody came back for."""
+    if not _GUITAR_PRO_DIR.is_dir():
+        return
+    for path in _GUITAR_PRO_DIR.iterdir():
+        try:
+            if now - path.stat().st_mtime > _GUITAR_PRO_KEEP_SEC:
+                path.unlink(missing_ok=True)
+        except OSError:
+            continue
+
+
+@router.post("/{job_id}/transcription.gp")
+async def hold_guitar_pro(job_id: str, request: Request) -> Response:
+    """Hold a Guitar Pro file for download.
+
+    The Notation view makes the song's Guitar Pro file itself, with alphaTab,
+    from the same score it draws. A file made in a page can be saved by a
+    browser, but not by the desktop app, whose shell only saves what it
+    fetches from this server. So the view sends the file's bytes here, and
+    then downloads them from the GET below like any other export.
+
+    The body is the file. It is kept for a few minutes, one per song, and
+    answers with where to download it and what it is called."""
+    job, _stems_dir = _done_job(job_id)
+    data = await request.body()
+    if len(data) > _GUITAR_PRO_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="the Guitar Pro file is too large")
+    if not _is_guitar_pro(data):
+        raise HTTPException(status_code=422, detail="that is not a Guitar Pro (.gp) file")
+
+    def write() -> None:
+        _GUITAR_PRO_DIR.mkdir(parents=True, exist_ok=True)
+        _drop_stale_guitar_pro(time.time())
+        final = _guitar_pro_path(job_id)
+        tmp = final.with_name(f".{final.name}.{os.getpid()}.tmp")
+        try:
+            tmp.write_bytes(data)
+            os.replace(tmp, final)
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    await asyncio.to_thread(write)
+    return JSONResponse(
+        {
+            "job_id": job_id,
+            "url": f"/api/jobs/{job_id}/transcription.gp",
+            "file_name": _file_name(job, "", "gp"),
+            "bytes": len(data),
+        },
+        headers=_NO_STORE,
+    )
+
+
+@router.get("/{job_id}/transcription.gp")
+def get_guitar_pro(job_id: str) -> Response:
+    """The Guitar Pro file the Notation view last made for this song, named
+    after the song. 404 when none is waiting: it is made on demand by the view
+    (POST above) and kept only for a few minutes."""
+    job, _stems_dir = _done_job(job_id)
+    path = _guitar_pro_path(job_id)
+    try:
+        fresh = time.time() - path.stat().st_mtime <= _GUITAR_PRO_KEEP_SEC
+    except OSError:
+        fresh = False
+    if not fresh:
+        path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=404,
+            detail="no Guitar Pro file is waiting: make it again from the Notation view",
+        )
+    return _download(path.read_bytes(), _GUITAR_PRO_TYPE, _file_name(job, "", "gp"))
 
 
 def _tab_payload(job_id: str, choices: dict[str, dict]) -> dict:

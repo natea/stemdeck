@@ -165,7 +165,7 @@ In Performance mode:
 
 - **Export** what you hear as one file, every part as a `.zip`, only the looped part, or, when the song came with a video, a video with the original picture. Add the click or a count-in if you like.
 - **Drag a stem or a loop** from the desktop app straight into your other music software.
-- **MIDI and sheet music** of the transcribed parts: a MIDI file as played, a MIDI file snapped to the song's own beats that stays in time with the audio in a DAW, or a MusicXML score for a notation program, with the string and fret of each guitar and bass note. The Notation view also saves a **Guitar Pro** file for tab editors.
+- **MIDI and sheet music** of the transcribed parts: a MIDI file as played, a MIDI file snapped to the song's own beats that stays in time with the audio in a DAW, or a MusicXML score for a notation program, with a tab staff under each guitar and bass part. The Notation view also saves a **Guitar Pro** file for tab editors.
 - **A library** with colored folders, tags you can search by (`#tag`), favorites, and a Trash that only deletes when you empty it.
 
 ### <img src="imgs/readme/eye.svg" width="22" align="top" alt=""> It explains itself

@@ -498,11 +498,18 @@ def test_musicxml_download(client, jobs_dir):
     assert r.headers["content-type"].startswith("application/vnd.recordare.musicxml+xml")
     assert r.headers["content-disposition"] == 'attachment; filename="Blue_in_Green.musicxml"'
     score = converter.parseData(r.content.decode("utf-8"), format="musicxml")
+
+    def names(parsed):
+        # The bass part is two staves, notation and tab (openspec change
+        # add-alphatab-notation), which music21 reads as two parts of one name.
+        return list(dict.fromkeys(p.partName for p in parsed.parts))
+
     # Score order, not the alphabet: the voice on top, the bass under it.
-    assert [p.partName for p in score.parts] == ["vocals", "bass"]
+    assert names(score) == ["vocals", "bass"]
+    assert r.content.count(b"<score-part ") == 2
     asked = client.get(f"/api/jobs/{JOB}/transcription.musicxml?stems=bass,vocals")
     asked_score = converter.parseData(asked.content.decode("utf-8"), format="musicxml")
-    assert [p.partName for p in asked_score.parts] == ["bass", "vocals"]
+    assert names(asked_score) == ["bass", "vocals"]
     assert b"<fifths>0</fifths>" in r.content and b"<mode>minor</mode>" in r.content
     only = client.get(f"/api/jobs/{JOB}/transcription.musicxml?stems=vocals")
     assert only.content.count(b"<score-part ") == 1

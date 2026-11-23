@@ -17,7 +17,7 @@
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID, TRACK_TITLE, SIBLING_JOB_ID, SIBLING_TITLE,
-  fixtureTrack, seedCatalogState, stubExportEndpoints, stubUpdateCheck, chooseMode,
+  fixtureTrack, seedCatalogState, stubExportEndpoints, stubUpdateCheck, stubTauri, chooseMode,
 } from "./helpers.mjs";
 
 // The engine has to really play for "the cursor follows playback" to mean
@@ -31,6 +31,7 @@ const BAR_SEC = 2;
 const BARS = 3;
 const SCORE = new RegExp(`/api/jobs/${SONG}/transcription\\.alphatex`);
 const TAB = `/api/jobs/${SONG}/transcription/tab`;
+const GUITAR_PRO = `/api/jobs/${SONG}/transcription.gp`;
 
 const ui = (page) => ({
   chip: page.locator("#t-notation-btn"),
@@ -945,10 +946,18 @@ test.describe("Notation view", () => {
     await v.stem("drums").uncheck();
     await expect(v.score).toHaveAttribute("data-tracks", "2");
 
+    // The view makes the file, hands it to the server, and downloads it from
+    // there: the one way of saving that the desktop app has too.
+    const held = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === GUITAR_PRO);
     await v.downloads.click();
     const [download] = await Promise.all([page.waitForEvent("download"), v.guitarPro.click()]);
     expect(download.suggestedFilename()).toBe("E2E_MP3_Track.gp");
+    expect(new URL(download.url()).pathname).toBe(GUITAR_PRO);
+    const answer = await held;
+    expect(answer.status()).toBe(200);
+    expect(answer.request().headers()["content-type"]).toBe("application/octet-stream");
     const bytes = [...(await import("node:fs")).readFileSync(await download.path())];
+    expect(await answer.json()).toEqual({ job_id: SONG, url: GUITAR_PRO, file_name: "E2E_MP3_Track.gp", bytes: bytes.length });
     expect(bytes.length).toBeGreaterThan(500);
     // A Guitar Pro 7 file is a zip.
     expect(String.fromCharCode(...bytes.slice(0, 2))).toBe("PK");
@@ -1001,5 +1010,98 @@ test.describe("Notation view", () => {
     // And those frets sound the notes: open string + capo + fret.
     const open = [43, 38, 33, 28, 23];
     expect(bass.firstBar.map(([[string, fret]]) => open[string - 1] + 2 + fret)).toEqual([38, 33]);
+  });
+
+  test("the desktop app saves the Guitar Pro file through its own dialog", async ({ page }) => {
+    // The shell saves only what it fetches from the server, so the file the
+    // view makes has to be waiting there by the time the shell is given a URL.
+    await stubTauri(page);
+    const posts = [];
+    page.on("request", (r) => {
+      if (r.method() === "POST" && new URL(r.url()).pathname === GUITAR_PRO) posts.push(r.url());
+    });
+    await openSong(page);
+    await openScore(page);
+    const v = ui(page);
+    await v.stem("vocals").uncheck();
+    await v.stem("drums").uncheck();
+    await expect(v.score).toHaveAttribute("data-tracks", "2");
+
+    await v.downloads.click();
+    await v.guitarPro.click();
+    // First the dialog, under the song's name. Nothing is made while it is open.
+    await page.waitForFunction(() => window.__e2e.pickPending());
+    const pick = await page.evaluate(() => window.__e2e.callsFor("pick_export_destination").at(-1).args);
+    expect(pick).toEqual({ filename: "E2E_MP3_Track.gp" });
+    expect(posts).toEqual([]);
+    await expect(v.guitarPro).toBeDisabled();
+
+    // A place is chosen: the file is made, held, and the shell is told where.
+    await page.evaluate(() => window.__e2e.choosePath());
+    await page.waitForFunction(() => window.__e2e.savePending());
+    expect(posts).toHaveLength(1);
+    const save = await page.evaluate(() => window.__e2e.callsFor("download_to_path").at(-1).args);
+    expect(save.token).toBe("token-1");
+    const url = new URL(save.url);
+    expect(url.origin).toBe(new URL(page.url()).origin); // absolute, as the shell requires
+    expect(url.pathname).toBe(GUITAR_PRO);
+
+    // What the shell fetches from there is the Guitar Pro file, named after the song.
+    const fetched = await page.evaluate(async (href) => {
+      const res = await fetch(href);
+      const data = new Uint8Array(await res.arrayBuffer());
+      const alphaTab = await import("/vendor/alphatab/alphaTab.min.mjs");
+      const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(data, new alphaTab.Settings());
+      return {
+        status: res.status,
+        disposition: res.headers.get("content-disposition"),
+        magic: String.fromCharCode(data[0], data[1]),
+        tracks: score.tracks.map((track) => track.name),
+      };
+    }, save.url);
+    expect(fetched).toEqual({
+      status: 200,
+      disposition: 'attachment; filename="E2E_MP3_Track.gp"',
+      magic: "PK",
+      tracks: ["Guitar", "Bass"],
+    });
+    await page.evaluate(() => window.__e2e.finishSave());
+    await expect(v.guitarPro).toBeEnabled();
+    await expect(page.locator("#notationTabError")).toHaveCount(0);
+  });
+
+  test("a cancelled save dialog makes no Guitar Pro file", async ({ page }) => {
+    await stubTauri(page);
+    const posts = [];
+    page.on("request", (r) => {
+      if (r.method() === "POST" && new URL(r.url()).pathname === GUITAR_PRO) posts.push(r.url());
+    });
+    await openSong(page);
+    await openScore(page);
+    const v = ui(page);
+    await v.downloads.click();
+    await v.guitarPro.click();
+    await page.waitForFunction(() => window.__e2e.pickPending());
+    await page.evaluate(() => window.__e2e.cancelPick());
+    await expect(v.guitarPro).toBeEnabled();
+    expect(posts).toEqual([]);
+    expect(await page.evaluate(() => window.__e2e.callsFor("download_to_path").length)).toBe(0);
+  });
+
+  test("a Guitar Pro file the server will not hold is reported, not saved", async ({ page }) => {
+    await page.route(`**${GUITAR_PRO}`, (route) =>
+      route.request().method() === "POST"
+        ? route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "that is not a Guitar Pro (.gp) file" }) })
+        : route.fallback());
+    await openSong(page);
+    await openScore(page);
+    const v = ui(page);
+    let downloads = 0;
+    page.on("download", () => { downloads += 1; });
+    await v.downloads.click();
+    await v.guitarPro.click();
+    await expect(page.locator("#notationTabError")).toHaveText("The Guitar Pro file could not be made. Try again.");
+    await expect(v.guitarPro).toBeEnabled();
+    expect(downloads).toBe(0);
   });
 });

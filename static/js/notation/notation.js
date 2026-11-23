@@ -733,31 +733,42 @@ async function saveTab(stem, change) {
  * per stem, so a note with no string and fret (already counted above the
  * score) is left out rather than given a staff of its own.
  */
+// The Guitar Pro file is made here, by alphaTab, from the score's own text.
+// A file that exists only in the page can be saved by a browser but not by the
+// desktop app, whose shell saves only what it fetches from the server. So the
+// bytes are sent to the server, which holds them for a few minutes, and the
+// file is then downloaded from there like every other export.
+async function heldGuitarPro(job, shown, parts, names) {
+  const res = await fetch(`${scoreUrl(job, shown, parts)}&unplaced=omit`);
+  if (!res.ok) throw new Error(`score ${res.status}`);
+  const bytes = await guitarProBytes((await res.json()).alphatex, names);
+  const held = await fetch(`/api/jobs/${job}/transcription.gp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: bytes,
+  });
+  if (!held.ok) throw new Error(`hold ${held.status}`);
+  return (await held.json()).url;
+}
+
 async function downloadGuitarPro() {
   if (!info || !jobId) return;
-  const names = Object.fromEntries(info.stems.map((name) => [name, stemLabel(name)]));
+  const job = jobId;
+  const shown = info.stems;
+  const parts = info.parts;
+  const names = Object.fromEntries(shown.map((name) => [name, stemLabel(name)]));
   const fileName = info.file_names?.guitar_pro || "transcription.gp";
-  let bytes;
   ui.guitarPro.disabled = true;
   try {
-    const res = await fetch(`${scoreUrl(jobId, info.stems, info.parts)}&unplaced=omit`);
-    if (!res.ok) throw new Error(`score ${res.status}`);
-    bytes = await guitarProBytes((await res.json()).alphatex, names);
+    // In the desktop app the save dialog comes first and the file is made
+    // once a place is chosen; a cancelled dialog makes nothing.
+    await triggerDownload(() => heldGuitarPro(job, shown, parts, names), fileName);
   } catch (e) {
     console.warn("[notation] the Guitar Pro file could not be made:", e);
     showTabError(t("notation.guitarProFailed"));
-    return;
   } finally {
     ui.guitarPro.disabled = !info;
   }
-  const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 // ─── Following the player ───

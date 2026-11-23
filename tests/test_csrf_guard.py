@@ -358,6 +358,20 @@ async def test_a_take_part_upload_keeps_its_raw_body(network):
     assert r.status_code == 404, "the route answered, not the guard"
 
 
+async def test_a_guitar_pro_file_keeps_its_raw_body(network):
+    """The Notation view posts the file it made as bytes, and only as bytes."""
+    url = "/api/jobs/a1a1a1a1a1a1/transcription.gp"
+    async with _client() as c:
+        raw = await c.post(
+            url, content=b"PK\x03\x04", headers={"Content-Type": "application/octet-stream"}
+        )
+        form = await c.post(
+            url, content=b"a=b", headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
+    assert raw.status_code == 404, "the route answered, not the guard"
+    assert form.status_code == 415
+
+
 # ── unit: the pure helpers ──
 
 
