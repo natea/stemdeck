@@ -1,0 +1,160 @@
+/* The Visualizer (Labs, static/js/viz/host.js): a layer over the lanes, down
+   to the top of the footer, which stays in use. Host styles only: a
+   visualization draws inside the canvas and has no CSS of its own. */
+
+.viz {
+  position: fixed;
+  z-index: 25; /* over everything in the lanes (up to 20), under every menu and dialog */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: #050b10;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+.viz[hidden] { display: none; }
+
+.viz-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.viz-heading { display: flex; align-items: center; gap: 8px; flex: none; }
+.viz-title { font-size: 13px; font-weight: 600; }
+.viz-labs {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.viz-picker {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.viz-pick {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  max-width: 220px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-2);
+  color: var(--fg);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.viz-pick:hover { background: var(--panel-3); }
+.viz-pick.on { border-color: var(--accent); }
+.viz-pick:focus-visible, .viz-close:focus-visible, .viz-message-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.viz-pick-name { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.viz-pick-desc {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.viz-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-2);
+  color: var(--fg);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.viz-close:hover { background: var(--panel-3); }
+
+.viz-stage { flex: 1; min-height: 0; position: relative; }
+.viz-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.viz-canvas[hidden] { display: none; }
+.viz-caption {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  max-width: calc(100% - 24px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(5, 11, 16, 0.78);
+  color: var(--fg);
+  font-size: 12.5px;
+  pointer-events: none;
+}
+.viz-caption[hidden] { display: none; }
+.viz-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.viz-message[hidden] { display: none; }
+.viz-message-text { margin: 0; max-width: 46ch; font-size: 14px; color: var(--fg); }
+.viz-message[data-kind="loading"] .viz-message-text { color: var(--muted); }
+.viz-message-action {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #1a1206;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.viz-message-action[hidden] { display: none; }
+
+/* The rail's button, beside Mode. */
+.rail-viz { position: relative; }
+.rail-viz[hidden] { display: none; }
+.rail-viz[aria-pressed="true"] { color: var(--accent); background: var(--panel); }
+.rail-viz:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.viz-badge {
+  position: absolute;
+  top: -3px;
+  right: -7px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: var(--bg, #050b10);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+/* Karaoke and Performance own the window: no Visualizer there. */
+html.karaoke-open .rail-viz,
+html.streamer-open .rail-viz { display: none; }
