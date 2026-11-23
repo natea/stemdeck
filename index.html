@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>StemDeck: from stems to notes</title>
-<meta name="description" content="Three StemDeck branches: transcribe separated stems to notes, read them as staff and tablature with alphaTab, and watch them as Three.js visualizers.">
+<title>StemDeck: YouTube to sheet music</title>
+<meta name="description" content="Paste a YouTube or SoundCloud link, or drop in an audio file. Three StemDeck branches: transcribe separated stems to notes, read them as staff and tablature with alphaTab, and watch them as Three.js visualizers.">
 <meta property="og:title" content="StemDeck: from stems to notes">
 <meta property="og:description" content="Transcribe stems, read them as staff and tab, watch them in 3D.">
 <meta property="og:image" content="https://natea.github.io/stemdeck/img/studio-notation.jpg">
@@ -72,6 +72,14 @@ p { margin: 0; max-width: var(--measure); text-wrap: pretty; }
 .hero h1 { font: 800 var(--step-3)/0.98 var(--sans); max-width: 14ch; }
 .hero h1 em { font-style: normal; color: var(--gold); }
 .hero .lede { font-size: var(--step-1); line-height: 1.5; color: var(--ink-2); max-width: 46ch; }
+.inputs { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.inputs li { display: inline-flex; align-items: center; gap: 9px; padding: 9px 14px; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink-2); font-size: 0.95rem; }
+.inputs li svg { color: var(--gold); flex: none; }
+.inputs b { color: var(--ink); font-weight: 650; }
+.flow-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font: 500 var(--step--1)/1.5 var(--mono); color: var(--muted); max-width: none; }
+.flow-line span { color: var(--ink-2); }
+.flow-line i { font-style: normal; color: var(--gold); }
+.flow-line a { margin-left: 8px; }
 .roll {
   margin-top: clamp(32px, 5vw, 56px);
   border-block: 1px solid var(--rule);
@@ -142,6 +150,12 @@ figcaption { font: 400 var(--step--1)/1.5 var(--mono); color: var(--muted); max-
 .viz-card h3 { font: 700 1.02rem/1.3 var(--sans); }
 .viz-card p { font-size: 0.93rem; color: var(--ink-2); }
 
+.modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: clamp(28px, 4vw, 44px); }
+.mode { display: grid; gap: 10px; align-content: start; padding: 24px; border: 1px solid var(--rule); border-radius: 10px; background: var(--panel); }
+.mode h3 { font: 700 var(--step-1)/1.25 var(--sans); }
+.mode p { color: var(--ink-2); font-size: 0.97rem; }
+.mode b { color: var(--ink); }
+
 /* Try it */
 .try { padding-block: clamp(56px, 8vw, 112px); border-top: 1px solid var(--rule); }
 .try-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(24px, 4vw, 64px); }
@@ -165,6 +179,7 @@ footer p { font: 400 var(--step--1)/1.6 var(--mono); color: var(--muted); max-wi
   .link + .link { border-left: 0; border-top: 1px solid var(--rule); }
   .viz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shot-pair { grid-template-columns: minmax(0, 1fr); }
+  .modes { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 560px) {
   .viz-grid { grid-template-columns: minmax(0, 1fr); }
@@ -186,6 +201,7 @@ footer p { font: 400 var(--step--1)/1.6 var(--mono); color: var(--muted); max-wi
       <a href="#transcribe">Transcribe</a>
       <a href="#notation">Notation</a>
       <a href="#visualizers">Visualizers</a>
+      <a href="pipeline.html">Pipeline</a>
       <a href="#try">Try it</a>
     </nav>
   </div>
@@ -195,8 +211,14 @@ footer p { font: 400 var(--step--1)/1.6 var(--mono); color: var(--muted); max-wi
   <section class="hero" aria-labelledby="hero-title">
     <div class="wrap hero-copy">
       <span class="label">Three branches on a StemDeck fork</span>
-      <h1 id="hero-title">Split the song. Then <em>read the notes.</em></h1>
-      <p class="lede">StemDeck already separates a song into vocals, drums, bass, guitar, piano and the rest. These changes go one step further: they turn each stem into notes, show them as staff and tablature that follow playback, and draw them in 3D.</p>
+      <h1 id="hero-title">Paste a YouTube link. <em>Get the sheet music.</em></h1>
+      <p class="lede">StemDeck splits any song into vocals, drums, bass, guitar, piano and the rest, on your own machine. These changes go one step further: they turn each stem into notes, show them as staff and tablature that follow playback, and draw them in 3D.</p>
+      <ul class="inputs" aria-label="What you can give StemDeck">
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></svg><span><b>YouTube</b> link</span></li>
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 15v2M6 12v5M9 10v7M12 8v9"/><path d="M14 17h5a3 3 0 0 0 0-6 5 5 0 0 0-5-4v10z"/></svg><span><b>SoundCloud</b> link</span></li>
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><circle cx="10" cy="16" r="2"/><path d="M12 16V10l3 1"/></svg><span><b>Audio file</b> MP3, WAV, FLAC, M4A, OGG, Opus or MP4</span></li>
+      </ul>
+      <p class="flow-line"><span>Link or file</span><i aria-hidden="true">&rarr;</i><span>six stems</span><i aria-hidden="true">&rarr;</i><span>notes</span><i aria-hidden="true">&rarr;</i><span>staff, tab, MIDI</span> <a href="pipeline.html">See the whole pipeline</a></p>
     </div>
     <div class="roll">
       <canvas id="roll" role="img" aria-label="Piano roll of every note transcribed from one song: 5,365 notes across six stems, drawn in each stem's colour, with a playhead sweeping across."></canvas>
@@ -263,7 +285,7 @@ footer p { font: 400 var(--step--1)/1.6 var(--mono); color: var(--muted); max-wi
       </div>
       <div class="shots">
         <figure>
-          <div class="shot dialog-shot"><img src="img/transcribe-dialog.jpg" width="900" height="1340" alt="The Transcribe to notes dialog. Six stems are ticked, each with its model and note count: Vocals, pitch tracker, 420 notes; Drums, multi-instrument model, 1295; Bass, pitch tracker, 498; Guitar, multi-instrument model, 2727; Piano, piano model, 97; Other, multi-instrument model, 328. Below are a Transcribe button, a Snap notes to menu set to sixteenth notes, and three downloads." loading="lazy"></div>
+          <div class="shot dialog-shot"><img src="img/transcribe-dialog.jpg" width="1100" height="1060" alt="The Transcribe to notes dialog. Six stems are ticked, each with its model and note count: Vocals, pitch tracker, 420 notes; Drums, multi-instrument model, 1295; Bass, pitch tracker, 498; Guitar, multi-instrument model, 2727; Piano, piano model, 97; Other, multi-instrument model, 328. Below are a Transcribe button, a Snap notes to menu set to sixteenth notes, and three downloads." loading="lazy"></div>
           <figcaption>Export Mix &rarr; Transcribe opens this dialog. Pick the stems, run it, and download MIDI or MusicXML. A progress bar shows each stem while it runs.</figcaption>
         </figure>
       </div>
@@ -346,6 +368,32 @@ footer p { font: 400 var(--step--1)/1.6 var(--mono); color: var(--muted); max-wi
           <div class="shot"><img src="img/viz-drive-the-song.jpg" width="1400" height="818" alt="Drive the song: a road stretching ahead with orange speed bumps and glowing green and gold pillars on either side." loading="lazy"></div>
           <h3>Drive the song</h3>
           <p>A road at the song's tempo. Drum hits are bumps and sections are the scenery.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="feature" id="play" aria-labelledby="p-title">
+    <div class="wrap">
+      <div class="feature-head">
+        <div class="intro" style="position:static">
+          <span class="label">Already in StemDeck</span>
+          <h2 id="p-title">Then sing it, or play it and film yourself</h2>
+        </div>
+        <div class="intro" style="position:static">
+          <p>The notes are new. These two modes were already there, and they are why the stems matter.</p>
+        </div>
+      </div>
+      <div class="modes">
+        <article class="mode">
+          <span class="label" style="color:var(--vocals)">Karaoke</span>
+          <h3>The lyrics fill the window</h3>
+          <p>Words light up one by one as the song plays, with the lead voice taken out. Turn the backing vocals on or off, and drag songs from your library into a queue.</p>
+        </article>
+        <article class="mode">
+          <span class="label" style="color:var(--guitar)">Performance</span>
+          <h3>Take your part out and play it yourself</h3>
+          <p>Tell StemDeck what you play with <b>I play</b>, and that stem leaves the backing track you hear. Film yourself playing along, review the take in step with the song, trim it, and export an MP4.</p>
         </article>
       </div>
     </div>

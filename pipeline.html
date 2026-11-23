@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StemDeck pipeline</title>
+<meta name="description" content="How StemDeck turns a YouTube or SoundCloud link, or an audio file, into stems, notes, sheet music, tab and 3D visualizers, and which model transcribes each stem.">
+<meta name="color-scheme" content="dark">
+<style>
+:root {
+  --ground: #0b0f12; --panel: #131a1f; --rule: #232c34;
+  --ink: #e8ecf0; --ink-2: #c2c9d1; --muted: #8a939c; --gold: #f4b740;
+  --vocals: #ef4444; --drums: #f97316; --bass: #eab308; --guitar: #22c55e; --piano: #a855f7; --other: #9ca3af;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --gutter: clamp(16px, 4vw, 48px);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ground); color: var(--ink); font: 400 1.0625rem/1.6 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+a { color: var(--gold); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.wrap { width: min(1240px, 100% - 2 * var(--gutter)); margin-inline: auto; }
+.label { font: 600 0.8125rem/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.bar { border-bottom: 1px solid var(--rule); }
+.bar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 1rem/1 var(--sans); color: var(--ink); text-decoration: none; }
+.brand svg { color: var(--gold); }
+.bar nav a { color: var(--ink-2); text-decoration: none; font: 500 0.8125rem/1 var(--mono); margin-left: 20px; }
+.bar nav a:hover { color: var(--gold); }
+header.head { padding-block: clamp(36px, 6vw, 72px) clamp(24px, 4vw, 40px); display: grid; gap: 16px; }
+h1 { margin: 0; font: 800 clamp(2rem, 1.2rem + 3.4vw, 3.6rem)/1.02 var(--sans); letter-spacing: -0.02em; max-width: 18ch; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--gold); }
+.lede { margin: 0; max-width: 60ch; color: var(--ink-2); font-size: 1.15rem; }
+.layout { display: grid; grid-template-columns: minmax(0, 760px) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: start; padding-bottom: 72px; }
+.figure { border: 1px solid var(--rule); border-radius: 10px; background: #0d1216; overflow: hidden; }
+.figure img { display: block; width: 100%; height: auto; }
+.side { position: sticky; top: 24px; display: grid; gap: 28px; }
+.side h2 { margin: 0 0 12px; font: 700 1.3rem/1.2 var(--sans); }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+th, td { text-align: left; padding: 10px 8px; border-top: 1px solid var(--rule); vertical-align: top; }
+th { font: 600 0.75rem/1.3 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border-top: 0; }
+td:first-child { white-space: nowrap; }
+.stem { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.stem i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+td small { display: block; color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+.notes { display: grid; gap: 10px; color: var(--ink-2); font-size: 0.95rem; }
+.notes p { margin: 0; }
+.notes b { color: var(--ink); }
+footer { border-top: 1px solid var(--rule); padding-block: 24px 40px; font: 400 0.8125rem/1.6 var(--mono); color: var(--muted); }
+@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } .side { position: static; order: -1; } }
+@media (max-width: 560px) { .bar nav a { margin-left: 12px; } td:first-child { white-space: normal; } }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="./"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 6v12"/></svg>StemDeck</a>
+    <nav aria-label="Pages"><a href="./">Overview</a><a href="./#try">Try it</a></nav>
+  </div>
+</header>
+<main class="wrap">
+  <header class="head">
+    <span class="label">The pipeline</span>
+    <h1>Any YouTube video in, <em>sheet music and tab out</em></h1>
+    <p class="lede">Paste a YouTube or SoundCloud link, or drop in an audio file. StemDeck separates it into six stems on your machine, sends each stem to the model that hears it best, and turns the notes into a score you can read while the song plays.</p>
+  </header>
+  <div class="layout">
+    <figure class="figure" style="margin:0">
+      <img src="img/pipeline.svg" width="752" height="3550" alt="Pipeline from a YouTube or SoundCloud link or an audio file, through download and Demucs separation into six stems, to CREPE, the ByteDance piano model and YourMT3+, then raw notes, quantising on the beat grid, MIDI, MusicXML and alphaTex, and in the browser the Notation view, Guitar Pro export and the Visualizers.">
+    </figure>
+    <aside class="side">
+      <section aria-labelledby="models-title">
+        <h2 id="models-title">Which model hears which stem</h2>
+        <table>
+          <thead><tr><th scope="col">Stem</th><th scope="col">Model</th></tr></thead>
+          <tbody>
+            <tr><td><span class="stem" style="--c:var(--vocals)"><i></i>Vocals</span></td><td>CREPE pitch tracking, then pitch curve to notes<small>also lead vocals after a vocal split</small></td></tr>
+            <tr><td><span class="stem" style="--c:var(--bass)"><i></i>Bass</span></td><td>CREPE pitch tracking, then pitch curve to notes<small>one note at a time</small></td></tr>
+            <tr><td><span class="stem" style="--c:var(--piano)"><i></i>Piano</span></td><td>ByteDance high-resolution piano transcription<small>notes with velocities</small></td></tr>
+            <tr><td><span class="stem" style="--c:var(--guitar)"><i></i>Guitar</span></td><td>YourMT3+<small>several notes at once</small></td></tr>
+            <tr><td><span class="stem" style="--c:var(--other)"><i></i>Other</span></td><td>YourMT3+<small>also backing vocals after a vocal split</small></td></tr>
+            <tr><td><span class="stem" style="--c:var(--drums)"><i></i>Drums</span></td><td>YourMT3+<small>hits kept as General MIDI percussion</small></td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="notes" aria-labelledby="notes-title">
+        <h2 id="notes-title">Worth knowing</h2>
+        <p><b>Separation:</b> one Demucs model, htdemucs_6s, makes all six stems. Lead and backing vocals come from an optional second split of the vocals with UVR Karaoke 2.</p>
+        <p><b>Rhythm:</b> beat tracking runs on the drums stem. Your own edits to the beat grid win, and changing the grid re-snaps the notes without running a model again.</p>
+        <p><b>Stored versus built:</b> only the raw notes per stem are saved. Quantised notes, fingering, MIDI, MusicXML and the alphaTab score are rebuilt each time you ask.</p>
+        <p><b>As played:</b> the MIDI download can skip quantising, and the Visualizers always use the notes as played.</p>
+        <p><b>Defaults:</b> each stem's model can be changed with <code>STEMDECK_TRANSCRIBE_&lt;STEM&gt;</code>.</p>
+        <p>Every box and arrow traces to the code on the <a href="https://github.com/natea/stemdeck/tree/alphatab-notation">alphatab-notation</a> branch. <a href="img/pipeline.drawio.svg">Open the diagram in draw.io</a>.</p>
+      </section>
+    </aside>
+  </div>
+</main>
+<footer><div class="wrap">Diagram drawn with orrery. A fork of <a href="https://github.com/stemdeckapp/stemdeck">stemdeckapp/stemdeck</a> (AGPL-3.0).</div></footer>
+</body>
+</html>
