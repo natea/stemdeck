@@ -164,21 +164,27 @@ for (const id of ids) {
   check("--all: its comments are closed", count(html, /<!--/g) === count(html, /-->/g));
   check("--all: it lost one stylesheet link and one button, nothing else", count(before.html, /<link /g) - count(html, /<link /g) === 1 && count(before.html, /<button[\s>]/g) - count(html, /<button[\s>]/g) === 1);
   check("--all: the rest of the page is line for line what it was", (() => {
-    const kept = new Set(html.split("\n"));
-    const lost = before.html.split("\n").filter((l) => !kept.has(l));
-    return lost.every((l) => /viz|Visualizer|3D picture|^\s*<svg width="15"|^\s*<path d="M12 3 21 8|^\s*<\/svg>|^\s*<\/button>|finds a visualization installed|stems as a 3D/.test(l) || l.trim() === "");
+    // The page as it was, less its marked blocks, taken out here by hand.
+    const kept = [];
+    let inside = false;
+    for (const line of before.html.split("\n")) {
+      if (line.includes("viz:begin")) inside = true;
+      else if (line.includes("viz:end")) inside = false;
+      else if (!inside) kept.push(line);
+    }
+    return kept.join("\n") === html;
   })());
 
   // The scripts still parse, and the string tables lost exactly the view's keys.
-  for (const js of ["static/js/main.js", "static/js/i18n.js"]) {
+  for (const js of ["static/js/main.js", "static/js/i18n.js", "static/js/helpMode.js"]) {
     const syntax = run(dir, "--check", join(dir, js));
     check(`--all: ${js} still parses`, syntax.status === 0, said(syntax));
   }
   const after = (await import(`${pathToFileURL(join(dir, "static/js/i18n.js")).href}?after`)).TRANSLATIONS;
   const lostKeys = (lang) => Object.keys(before.i18n[lang]).filter((k) => !(k in after[lang]));
-  check("--all: every language table lost only the view's own strings", Object.keys(before.i18n).every((lang) => lostKeys(lang).every((k) => k.startsWith("viz."))));
+  check("--all: every language table lost only the view's own strings", Object.keys(before.i18n).every((lang) => lostKeys(lang).every((k) => k.startsWith("viz.") || k === "help.vizButton")));
   check("--all: and every other string is unchanged", Object.keys(after).every((lang) => Object.keys(after[lang]).every((k) => after[lang][k] === before.i18n[lang][k])));
-  check("--all: no table has a view string left", Object.keys(after).every((lang) => !Object.keys(after[lang]).some((k) => k.startsWith("viz."))));
+  check("--all: no table has a view string left", Object.keys(after).every((lang) => !Object.keys(after[lang]).some((k) => k.startsWith("viz.") || k === "help.vizButton")));
   check("--all: main.js no longer starts the view", !readFileSync(join(dir, "static/js/main.js"), "utf8").includes("initVisualizer"));
 
   // Running it again on what is left has nothing to do and nothing to break.

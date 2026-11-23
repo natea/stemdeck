@@ -24,8 +24,8 @@
 // language; `stemLabel(name)` is a stem's name as StemDeck shows it.
 //
 // Not a mode: modes keep their own stems and saved mix, and looking at a
-// picture must not change what is heard. Karaoke and Performance hide the
-// footer, and with it the button.
+// picture must not change what is heard. Karaoke and Performance own the
+// window: viz.css hides the button while either is open.
 
 import { t, getLanguage, onLanguageChange } from "../i18n.js";
 import { currentJobId, mixerState, trackIndex, playbackSpeed } from "../state.js";
@@ -706,7 +706,7 @@ export function visualizerState() {
   };
 }
 
-/** Wire the footer's Visualizer button. With nothing installed there is no button. */
+/** Wire the rail's Visualizer button. With nothing installed there is no button. */
 export function initVisualizer() {
   btn = document.getElementById("t-viz-btn");
   if (!btn) return;

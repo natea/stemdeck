@@ -97,7 +97,7 @@ test.describe("Visualizer host", () => {
     await openStudio(page);
     const btn = page.locator("#t-viz-btn");
     await expect(btn).toBeVisible();
-    await expect(btn.locator(".viz-chip-labs")).toHaveText("Labs");
+    await expect(btn.locator(".viz-badge")).toHaveText("Labs");
     await play(page);
 
     // Sample the engine's clock right through open and close: it must only
@@ -207,12 +207,12 @@ test.describe("Visualizer host", () => {
   test("with nothing installed the Visualizer is not offered", async ({ page }) => {
     await stubRegistry(page, []);
     await openStudio(page);
-    await expect(page.locator("#t-master-btn")).toBeVisible();
+    await expect(page.locator("#modeBtn")).toBeVisible();
     await expect(page.locator("#t-viz-btn")).toBeHidden();
     await expect(page.locator("#viz")).toHaveCount(0);
   });
 
-  test("Karaoke hides the button with the footer", async ({ page }) => {
+  test("Karaoke closes the view and takes the button away", async ({ page }) => {
     await stubRegistry(page, TWO);
     await openStudio(page);
     await openViz(page);
@@ -294,8 +294,11 @@ test.describe("Visualizer host", () => {
     const last = times[times.length - 1];
     expect(last[1] - first[1]).toBeGreaterThan(300);
     const pace = (last[0] - first[0]) / ((last[1] - first[1]) / 1000);
-    expect(pace).toBeGreaterThan(0.4);
-    expect(pace).toBeLessThan(0.6);
+    // About half: wide enough for a machine that is busy with other test runs
+    // (the audio clock and the frame clock are not the same clock), narrow
+    // enough that full speed (1) or a stalled picture (0) cannot pass.
+    expect(pace).toBeGreaterThan(0.3);
+    expect(pace).toBeLessThan(0.7);
     const s = await stub(page, "stub-a");
     expect(s.last.rate).toBe(0.5);
     expect(Math.abs(s.last.time - (await now(page)))).toBeLessThan(0.08);

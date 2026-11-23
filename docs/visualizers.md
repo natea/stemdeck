@@ -1,6 +1,6 @@
 # Visualizers (Labs)
 
-The Visualizer is an experimental view that shows the open song's stems as a moving 3D picture. It follows StemDeck's own player and mixer, makes no sound and changes nothing. It opens from the cube button marked **Labs** at the right of the footer, in Practice and Advanced modes.
+The Visualizer is an experimental view that shows the open song's stems as a moving 3D picture. It follows StemDeck's own player and mixer, makes no sound and changes nothing. It opens from the cube button marked **Labs** in the sidebar rail, under Mode, in Practice and Advanced modes.
 
 It is built so that any picture, or all of it, can be removed without leaving anything behind. This page says how to add one, how to remove one, and how to remove everything.
 
@@ -20,7 +20,7 @@ tests/e2e/viz-*.mjs       browser tests for the host, and the runner
 scripts/viz-remove.mjs    removes one visualization, or everything
 ```
 
-Outside those, the Visualizer has only a few lines, each between a `viz:begin` and a `viz:end` comment: a stylesheet link and the button in `static/index.html`, an import and a call in `static/js/main.js`, the view's own strings in each language table of `static/js/i18n.js`, and a mention in `README.md`.
+Outside those, the Visualizer has only a few lines, each between a `viz:begin` and a `viz:end` comment: a stylesheet link and the button in `static/index.html`, an import and a call in `static/js/main.js`, the button's Guide entry in `static/js/helpMode.js`, the view's own strings in each language table of `static/js/i18n.js`, and a mention in `README.md`.
 
 ## What a visualization is
 

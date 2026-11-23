@@ -167,6 +167,24 @@ No image generator is reachable from this environment (no fal, OpenAI or Gemini 
 
 The layout above lists the sixth scene's folder as `drive/`, and task 8.1 says `scenes/drive/`. It was built as **`drive-the-song/`** with the id `drive-the-song` instead. The app already uses the word "drive" (the distortion pedal's `fx.pedal.drive` strings in ten languages, and comments), so after removing a scene called `drive` a search for its name would still find dozens of lines, and the removal script could not tell residue from coincidence. The other five ids occur nowhere outside their own folder and the registry. `scripts/viz-remove.mjs` refuses to trust a search for an id shorter than this for the same reason; `docs/visualizers.md` says to pick an id of two or more hyphenated words.
 
+### The button is in the sidebar rail, not the footer
+
+Section 6 puts the Visualizer button "beside the studio's view controls", and it was first built in the footer's right-hand group beside Master. It now sits in the sidebar rail, under Mode. The footer strip is budgeted to the pixel: `tests/e2e/footer-fit.spec.mjs` pins the window widths at which the click options fold away, and each new footer control has meant widening those numbers by its own width. With the Visualizer's button and the notation branch's button both there, the strip folded even in a 2,200-pixel window and four footer tests failed. A rail button takes no room from the strip, needs no edit to another feature's tests, and so leaves nothing to put back when the Visualizer is removed. `viz.css` hides it while Karaoke or Performance is open.
+
+The Guide requires an explanation for every visible control (`tests/e2e/help-mode.spec.mjs`), so the button has one: an entry in `static/js/helpMode.js` and a `help.vizButton` string in the ten tables, each inside the `viz:begin` / `viz:end` blocks, so `--all` removes them too.
+
+### Verification (task 10.4), 2026-11-22
+
+Run on the merge of the notation branch (`91ca697`) plus the uncommitted changes above. To be repeated if the review removes anything.
+
+- `uv run ruff check app/ tests/`: all checks passed.
+- Node: every `tests/js/*.test.mjs` passes, including the six scenes' own tests (625 checks) and the disposal test (88 checks).
+- Playwright: 1,035 tests in 127 spec files, on the project owner's second machine (Linux, software rendering) with `scripts/test-e2e-parallel.mjs --shards 8`. The 17 spec files that open the microphone or camera were left out, as the task says: `device-names`, `live-input-fx`, `live-wave`, `performance-input-fx`, `performance-takes`, `performance-volume`, `recording-no-peaks`, `recording-real-audio`, `recording-tracks`, `recording`, `streamer-media`, `streamer`, `take-folders-live`, `take-folders`, `track-header`, `video-sync`, `video-take`. Result: 1,030 passed, 1 skipped, 4 failed, and the four (`idle-unload-setting`, `network-restart`, `performance-tabs`, `eq-suggest`, one test each) all pass when their files are run again one at a time. The run before it failed five different tests the same way. None is a Visualizer test. Read as timing under eight-way load, not as defects, but not investigated further.
+- The 53 Visualizer browser tests also pass on the development Mac with its GPU.
+- `uv run pytest tests/ -q`: 4,517 passed, 13 skipped, 12 failed. All twelve fail without this change, whose commit touches no Python file:
+  - 3 in `tests/test_pipeline_workers.py` (`test_demucs_worker_serves_jobs_until_stdin_closes`, `test_demucs_worker_defaults_to_the_cpu`, `test_demucs_worker_exits_on_the_first_failed_job`) fail the same way on `5429e9f`, the commit before the Visualizer.
+  - 8 in `tests/test_pipeline_notes_musicxml_tab.py` and `tests/test_transcription_api.py::test_musicxml_download` fail the same way on `3538eab`, the notation branch's own commit, which contains no Visualizer file.
+
 ## Risks / Trade-offs
 
 - **[Six scenes is six times the work for something that may be thrown away]** → The host and data layer are built once and are most of the engineering. Scenes are built in order of confidence (terrain, slit-scan, galaxy first), and the review can stop the series early.
