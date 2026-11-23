@@ -2515,6 +2515,7 @@ const en = {
   "viz.failed": "{name} failed. The other visualizations still work.",
   "viz.noWebgl": "This computer cannot show the Visualizer.",
   "viz.none": "No visualization could be loaded.",
+  "help.vizButton": "Opens the Visualizer (Labs): the open song's stems as a moving 3D picture that follows playback and the mixer. It makes no sound and changes nothing. Esc closes it.",
   // viz:end
 };
 
@@ -4809,6 +4810,7 @@ const pl = {
   "viz.failed": "{name}: wystąpił błąd. Pozostałe wizualizacje nadal działają.",
   "viz.noWebgl": "Ten komputer nie może wyświetlić Wizualizatora.",
   "viz.none": "Nie udało się wczytać żadnej wizualizacji.",
+  "help.vizButton": "Otwiera Wizualizator (Labs): ścieżki otwartego utworu jako ruchomy obraz 3D, który podąża za odtwarzaniem i mikserem. Nie wydaje dźwięku i niczego nie zmienia. Esc go zamyka.",
   // viz:end
 };
 
@@ -7072,6 +7074,7 @@ const ja = {
   "viz.failed": "{name}でエラーが発生しました。ほかのビジュアライゼーションは引き続き使えます。",
   "viz.noWebgl": "このコンピューターではビジュアライザーを表示できません。",
   "viz.none": "ビジュアライゼーションを読み込めませんでした。",
+  "help.vizButton": "ビジュアライザー (Labs) を開きます。開いている曲のステムを、再生とミキサーに合わせて動く3Dの映像で表示します。音は出さず、何も変更しません。Escで閉じます。",
   // viz:end
 };
 
@@ -9335,6 +9338,7 @@ const zhHans = {
   "viz.failed": "{name}出错了。其他可视化效果仍可使用。",
   "viz.noWebgl": "这台电脑无法显示可视化。",
   "viz.none": "没有可以加载的可视化效果。",
+  "help.vizButton": "打开可视化 (Labs)：把当前歌曲的分轨显示为随播放和混音台变化的 3D 画面。它不发出声音，也不改动任何内容。按 Esc 关闭。",
   // viz:end
 };
 
@@ -11612,6 +11616,7 @@ const de = {
   "viz.failed": "{name} ist fehlgeschlagen. Die anderen Visualisierungen funktionieren weiter.",
   "viz.noWebgl": "Dieser Computer kann den Visualizer nicht anzeigen.",
   "viz.none": "Es konnte keine Visualisierung geladen werden.",
+  "help.vizButton": "Öffnet den Visualizer (Labs): die Stems des geöffneten Songs als bewegtes 3D-Bild, das der Wiedergabe und dem Mixer folgt. Er erzeugt keinen Ton und ändert nichts. Esc schließt ihn.",
   // viz:end
 };
 
@@ -13891,6 +13896,7 @@ const pt = {
   "viz.failed": "{name} falhou. As outras visualizações continuam funcionando.",
   "viz.noWebgl": "Este computador não consegue mostrar o Visualizador.",
   "viz.none": "Nenhuma visualização pôde ser carregada.",
+  "help.vizButton": "Abre o Visualizador (Labs): os stems da música aberta como uma imagem 3D em movimento que acompanha a reprodução e o mixer. Não emite som e não altera nada. Esc fecha.",
   // viz:end
 };
 
@@ -16154,6 +16160,7 @@ const id = {
   "viz.failed": "{name} gagal. Visualisasi lainnya tetap berfungsi.",
   "viz.noWebgl": "Komputer ini tidak dapat menampilkan Visualizer.",
   "viz.none": "Tidak ada visualisasi yang dapat dimuat.",
+  "help.vizButton": "Membuka Visualizer (Labs): stem lagu yang terbuka sebagai gambar 3D bergerak yang mengikuti pemutaran dan mixer. Tidak mengeluarkan suara dan tidak mengubah apa pun. Esc menutupnya.",
   // viz:end
 };
 
@@ -18433,6 +18440,7 @@ const fr = {
   "viz.failed": "{name} a échoué. Les autres visualisations fonctionnent toujours.",
   "viz.noWebgl": "Cet ordinateur ne peut pas afficher le Visualiseur.",
   "viz.none": "Aucune visualisation n'a pu être chargée.",
+  "help.vizButton": "Ouvre le Visualiseur (Labs) : les stems du morceau ouvert sous forme d'image 3D animée qui suit la lecture et la table de mixage. Il n'émet aucun son et ne modifie rien. Échap le ferme.",
   // viz:end
 };
 
@@ -21286,6 +21294,7 @@ const es = {
   "viz.failed": "{name} ha fallado. Las demás visualizaciones siguen funcionando.",
   "viz.noWebgl": "Este equipo no puede mostrar el Visualizador.",
   "viz.none": "No se pudo cargar ninguna visualización.",
+  "help.vizButton": "Abre el Visualizador (Labs): los stems de la canción abierta como una imagen 3D en movimiento que sigue la reproducción y el mezclador. No emite sonido ni cambia nada. Esc lo cierra.",
   // viz:end
 };
 
@@ -23558,6 +23567,7 @@ const ko = {
   "viz.failed": "{name}에서 오류가 발생했습니다. 다른 시각화는 계속 사용할 수 있습니다.",
   "viz.noWebgl": "이 컴퓨터에서는 비주얼라이저를 표시할 수 없습니다.",
   "viz.none": "불러올 수 있는 시각화가 없습니다.",
+  "help.vizButton": "비주얼라이저 (Labs)를 엽니다. 열려 있는 곡의 스템을 재생과 믹서를 따라 움직이는 3D 화면으로 보여 줍니다. 소리를 내지 않고 아무것도 바꾸지 않습니다. Esc로 닫습니다.",
   // viz:end
 };
 

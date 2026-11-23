@@ -45,11 +45,13 @@ export default function define({ test, expect, h }) {
     const tint = async (name) => (await debug(page)).stems.find((s) => s.name === name).tint;
     const drums = await tint("drums");
     const bass = await tint("bass");
-    const before = await h.brightnessOf(page);
     await h.setLane(page, "drums", { muted: true });
     await expect.poll(() => tint("drums")).not.toBe(drums);
     expect(await tint("bass")).toBe(bass);
-    await expect.poll(() => h.brightnessOf(page)).toBeLessThan(before);
+    // Grey: a muted stem loses its colour, not its shape or its brightness.
+    const grey = await tint("drums");
+    expect((grey >> 16) & 255).toBe((grey >> 8) & 255);
+    expect((grey >> 8) & 255).toBe(grey & 255);
     // Solo the vocals: everything else goes dark too.
     await h.setLane(page, "drums", { muted: false });
     await h.setLane(page, "vocals", { soloed: true });

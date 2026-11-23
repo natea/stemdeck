@@ -56,6 +56,9 @@ const HELP = [
   ['.mode-item[data-mode="karaoke"]', "help.karaoke"],
   ['.mode-item[data-mode="streamer"]', "help.streamer"],
   ["#modeBtn", "help.mode"],
+  // viz:begin
+  ["#t-viz-btn", "help.vizButton"],
+  // viz:end
   ["#autoSectionsBtn", "help.detectStructure"],
   ["#autoLyricsBtn", "help.detectLyrics"],
   ['.daw-panel-toggle[data-panel="analysis"]', "help.analysisToggle"],

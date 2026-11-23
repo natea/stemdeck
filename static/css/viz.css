@@ -26,7 +26,7 @@
 }
 .viz-heading { display: flex; align-items: center; gap: 8px; flex: none; }
 .viz-title { font-size: 13px; font-weight: 600; }
-.viz-labs, .viz-chip-labs {
+.viz-labs {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -63,7 +63,7 @@
 }
 .viz-pick:hover { background: var(--panel-3); }
 .viz-pick.on { border-color: var(--accent); }
-.viz-pick:focus-visible, .viz-close:focus-visible, .viz-message-action:focus-visible, .viz-chip:focus-visible {
+.viz-pick:focus-visible, .viz-close:focus-visible, .viz-message-action:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
@@ -133,12 +133,28 @@
 }
 .viz-message-action[hidden] { display: none; }
 
-/* The footer's button. */
-.viz-chip { color: var(--muted); padding: 0 9px; }
-.viz-chip[hidden] { display: none; }
-.viz-chip:hover { color: var(--fg); }
-.viz-chip[aria-pressed="true"] {
+/* The rail's button, beside Mode. */
+.rail-viz { position: relative; }
+.rail-viz[hidden] { display: none; }
+.rail-viz[aria-pressed="true"] { color: var(--accent); background: var(--panel); }
+.rail-viz:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.viz-badge {
+  position: absolute;
+  top: -3px;
+  right: -7px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: var(--bg, #050b10);
   color: var(--accent);
-  background: var(--panel-3);
-  border-color: var(--gold-line);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  pointer-events: none;
 }
+/* Karaoke and Performance own the window: no Visualizer there. */
+html.karaoke-open .rail-viz,
+html.streamer-open .rail-viz { display: none; }
