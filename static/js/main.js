@@ -31,6 +31,7 @@ import { initLyrics } from "./lyrics.js";
 import { initHelpMode } from "./helpMode.js";
 import { initVideoTake } from "./video/videoTake.js";
 import { initMasterPanel } from "./masterPanel.js";
+import { initNotation } from "./notation/notation.js";
 import { initModeUi } from "./modeUi.js";
 import { initKaraoke, isKaraokeOpen } from "./karaoke/karaoke.js";
 import { initStreamer, isStreamerOpen, isStreamerTakeOpen } from "./streamer/streamer.js";
@@ -534,6 +535,9 @@ initHelpMode();
 // load the capture modules; a failure there must not stop the studio.
 initVideoTake().catch((err) => console.warn("[video] init failed:", err));
 initMasterPanel();
+// The Notation drawer (notation/notation.js). Its chip stays hidden where
+// transcription cannot run.
+initNotation().catch((e) => console.warn("[notation] setup failed:", e));
 initModeUi();
 initMixMode();
 initModeStems();

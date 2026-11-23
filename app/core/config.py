@@ -600,6 +600,47 @@ QUANTIZE_PARTS_DEFAULT = 4
 # Bars are counted in fours when the grid has no bar marks (the librosa
 # fallback finds beats but no downbeats).
 QUANTIZE_DEFAULT_BEATS_PER_BAR = 4
+
+# Tablature (openspec change add-alphatab-notation). The stems that can be
+# shown as tab, and the tunings offered for each: open-string MIDI pitches,
+# lowest string first. The first preset of each stem is its default.
+TAB_STEMS: tuple[str, ...] = ("guitar", "bass")
+TAB_TUNINGS: dict[str, dict[str, tuple[int, ...]]] = {
+    "guitar": {
+        "standard": (40, 45, 50, 55, 59, 64),  # E A D G B E
+        "drop_d": (38, 45, 50, 55, 59, 64),
+        "half_step_down": (39, 44, 49, 54, 58, 63),
+        "d_standard": (38, 43, 48, 53, 57, 62),
+        "open_g": (38, 43, 50, 55, 59, 62),
+        "dadgad": (38, 45, 50, 55, 57, 62),
+        "seven_string": (35, 40, 45, 50, 55, 59, 64),
+    },
+    "bass": {
+        "standard": (28, 33, 38, 43),  # E A D G
+        "drop_d": (26, 33, 38, 43),
+        "five_string": (23, 28, 33, 38, 43),
+        "half_step_down": (27, 32, 37, 42),
+    },
+}
+TAB_DEFAULT_PRESET = "standard"
+# A tuning the user types in: this many strings, each an open pitch in range.
+TAB_CUSTOM_STRINGS_MIN = 4
+TAB_CUSTOM_STRINGS_MAX = 8
+TAB_CUSTOM_PITCH_MIN = 12
+TAB_CUSTOM_PITCH_MAX = 96
+TAB_MAX_CAPO = 12
+# How a fretted stem is drawn: staff notation, tablature, or both together.
+TAB_DISPLAYS: tuple[str, ...] = ("score", "tab", "both")
+TAB_DEFAULT_DISPLAY = "both"
+# Fingering (app/pipeline/fingering.py). The highest fret a note may be placed
+# on, counted from the capo; the frets a hand covers at once (open strings do
+# not count); and how many candidate hand shapes are kept per chord.
+TAB_MAX_FRET = 20
+TAB_SPAN_FRETS = 4
+TAB_BEAM = 24
+# A tuning is suggested when more than this share of a stem's notes are out of
+# the current tuning's range.
+TAB_SUGGEST_SHARE = 0.05
 # Beat-grid stage decodes the whole drums stem (not the 180 s analyze window),
 # so it gets its own, larger budget.
 TIMEOUT_BEATGRID = _env_int("STEMDECK_TIMEOUT_BEATGRID", 300)

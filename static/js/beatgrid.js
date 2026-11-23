@@ -261,6 +261,13 @@ function _commit() {
   _saveTimer = setTimeout(_save, SAVE_DEBOUNCE_MS);
 }
 
+// The grid on the server changed. Whatever is drawn from it (the Notation
+// view, notation/notation.js) asks for it again.
+function _announceSaved() {
+  if (typeof document === "undefined") return;
+  document.dispatchEvent(new CustomEvent("stemdeck:beats-saved", { detail: { id: _jobId } }));
+}
+
 async function _save() {
   _saveTimer = null;
   if (!_jobId || !_dirty) return;
@@ -273,6 +280,7 @@ async function _save() {
     });
     if (!r.ok) throw new Error(`PATCH ${r.status}`);
     _dirty = false;
+    _announceSaved();
   } catch (e) {
     console.warn("[beatgrid] failed to save edits:", e);
   }
@@ -291,6 +299,7 @@ export async function resetBeatGrid() {
   if (!_jobId) return null;
   try {
     await fetch(`/api/jobs/${_jobId}/beats`, { method: "DELETE" });
+    _announceSaved();
     const r = await fetch(`/api/jobs/${_jobId}/beats`);
     if (!r.ok) return null;
     const grid = await r.json();

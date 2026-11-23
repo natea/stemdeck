@@ -72,6 +72,27 @@ Copyright Carbo Kuo (BYVoid) and the OpenCC contributors: only the first
 simplified form of each character is kept. The license text is
 app/_vendor/opencc/LICENSE.
 
+alphaTab
+License: Mozilla Public License 2.0
+         https://www.mozilla.org/MPL/2.0/
+Website: https://alphatab.net/
+Source:  https://github.com/CoderLine/alphaTab (tag v1.9.0)
+StemDeck's Notation view draws scores and tablature with alphaTab 1.9.0,
+Copyright Daniel Kuschny and Contributors. The files under
+static/vendor/alphatab/ are unmodified copies from the npm package
+@coderline/alphatab@1.9.0; static/vendor/alphatab/VERSION lists each
+file's SHA-256 and static/vendor/alphatab/LICENSE is the license text.
+The "alphaTab.net" attribution alphaTab draws in a score is left in place.
+
+Bravura music font
+License: SIL Open Font License 1.1
+         https://openfontlicense.org/open-font-license-official-text/
+Website: https://github.com/steinbergmedia/bravura
+The music symbols in the Notation view are set in Bravura, Copyright
+Steinberg Media Technologies GmbH, shipped with alphaTab as
+static/vendor/alphatab/font/Bravura.woff2. The license text is
+static/vendor/alphatab/font/Bravura-OFL.txt.
+
 Downloaded During First-Run Setup
 ---------------------------------
 
