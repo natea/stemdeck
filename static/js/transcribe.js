@@ -61,6 +61,17 @@ export function transcriptionAvailable() {
   return Boolean(config?.transcription_available);
 }
 
+/** What /api/config says about transcription, read once. For the Notation
+ * view (notation/notation.js), which is offered only where notes can be made. */
+export function transcriptionConfig() {
+  return loadConfig();
+}
+
+// A run ended: the song's notes may have changed. The Notation view redraws.
+function announceChange(id) {
+  document.dispatchEvent(new CustomEvent("stemdeck:transcription-changed", { detail: { id } }));
+}
+
 function stemLabel(name) {
   const key = `stem.${name}`;
   const label = t(key);
@@ -291,6 +302,7 @@ async function start() {
   }
   stopPolling();
   stopTicker();
+  announceChange(forJob);
   if (jobId !== forJob) return;
   running = false;
   jobState = body;
@@ -354,6 +366,7 @@ export async function openTranscribeDialog(forJobId = currentJobId) {
           running = false;
           stopPolling();
           stopTicker();
+          announceChange(watched);
           await fetchGridInfo();
         }
         render();

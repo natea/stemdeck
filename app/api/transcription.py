@@ -5,6 +5,11 @@ out as JSON, MIDI or MusicXML.
     GET  /api/jobs/{id}/transcription            the notes, as played or quantised
     GET  /api/jobs/{id}/transcription.mid        a MIDI file
     GET  /api/jobs/{id}/transcription.musicxml   a MusicXML score
+    GET  /api/jobs/{id}/transcription.alphatex   the score the Notation view draws
+    POST /api/jobs/{id}/transcription.gp         hold a Guitar Pro file the view made
+    GET  /api/jobs/{id}/transcription.gp         download it
+    GET  /api/jobs/{id}/transcription/tab        tuning, capo and staff or tab
+    PATCH /api/jobs/{id}/transcription/tab       change them
 
 Transcribing is a post-hoc action on a "done" job, like the lead and backing
 vocal split: it runs a worker process under the pipeline lock, its failure
@@ -17,23 +22,36 @@ shows up in the next download with no model run.
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
+import os
 import time
+import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app.api.config import transcription_available
 from app.api.jobs import _job_state, _pipeline_lock
 from app.api.stems import _title_slug
 from app.core.beat_files import read_grid
 from app.core.config import (
+    CACHE_DIR,
     JOB_ID_RE,
     JOBS_DIR,
+    QUANTIZE_DEFAULT_BEATS_PER_BAR,
     QUANTIZE_PARTS,
     QUANTIZE_PARTS_DEFAULT,
+    TAB_CUSTOM_PITCH_MAX,
+    TAB_CUSTOM_PITCH_MIN,
+    TAB_CUSTOM_STRINGS_MAX,
+    TAB_CUSTOM_STRINGS_MIN,
+    TAB_DISPLAYS,
+    TAB_MAX_CAPO,
+    TAB_STEMS,
+    TAB_TUNINGS,
     TRANSCRIBE_ROUTES,
 )
 from app.core.models import Job, JobBusy, _set
@@ -41,6 +59,7 @@ from app.core.registry import get as registry_get
 from app.core.registry import operation as registry_operation
 from app.core.registry import persist as registry_persist
 from app.core.stem_files import stem_exists
+from app.core.tab_files import TabSettingsError, read_tab, update_tab
 from app.core.transcription_files import read_notes, transcribed_stems
 from app.core.transcription_outcome import (
     CANCELLED,
@@ -57,6 +76,17 @@ logger = logging.getLogger("stemdeck.api")
 router = APIRouter()
 
 _MIDI_TYPE = "audio/midi"
+_ALPHATEX_TYPE = "text/plain; charset=utf-8"
+_GUITAR_PRO_TYPE = "application/octet-stream"
+# Where a Guitar Pro file waits between being made in the browser and being
+# downloaded: one per song, replaced by the next, gone after a few minutes.
+_GUITAR_PRO_DIR = CACHE_DIR / "guitar-pro"
+_GUITAR_PRO_KEEP_SEC = 600
+# A real song's file is about 100 KB. The JSON body limit (app/main.py)
+# already refuses anything over 4 MB before it is read.
+_GUITAR_PRO_MAX_BYTES = 4 * 1024 * 1024
+# What a Guitar Pro 7 file is: a zip that holds its score under this name.
+_GUITAR_PRO_SCORE = "Content/score.gpif"
 _MUSICXML_TYPE = "application/vnd.recordare.musicxml+xml"
 # The order of tracks and staves when the request names none.
 _SCORE_ORDER = (
@@ -398,13 +428,299 @@ def get_transcription_musicxml(
         return _no_grid()
     assert grid is not None
     beats = grid_beats(grid)
+    kept = _with_notes(notes)
+    # Guitar and bass carry their tablature: the same strings and frets the
+    # Notation view draws, from the song's tuning and capo.
+    staves, _facts = _fingered(stems_dir, kept, parts)
     data = musicxml_score(
-        _with_notes(notes),
+        kept,
         bars_of(grid, len(beats)),
         parts,
         title=job.title or "",
         bpm=grid.get("bpm") or job.bpm,
         key_name=job.key,
         scale=getattr(job, "scale", None),
+        tabs=staves,
     )
     return _download(data, _MUSICXML_TYPE, _file_name(job, "", "musicxml"))
+
+
+def _fingered(stems_dir: Path, notes: dict[str, list], parts: int) -> tuple[dict, dict[str, dict]]:
+    """The tab of each fretted stem in ``notes``, from the song's tuning and
+    capo: what the writers draw (a TabStaff per stem) and what the view tells
+    the user (how many notes found no place, why, and a tuning that would do
+    better). Worked out on every request, never stored."""
+    from app.pipeline.fingering import assign, reasons, suggest_tuning
+    from app.pipeline.notes_alphatex import TabStaff
+
+    choices = read_tab(stems_dir)
+    staves: dict = {}
+    facts: dict[str, dict] = {}
+    for stem in TAB_STEMS:
+        if stem not in notes:
+            continue
+        choice = choices[stem]
+        placed, unplaced = assign(
+            notes[stem],
+            choice["tuning"],
+            choice["capo"],
+            # A silence of a bar lets the hand move for free.
+            reset_steps=parts * QUANTIZE_DEFAULT_BEATS_PER_BAR,
+        )
+        staves[stem] = TabStaff(choice["tuning"], choice["capo"], choice["display"], placed)
+        facts[stem] = {
+            **choice,
+            "notes": len(notes[stem]),
+            "unplaced": len(unplaced),
+            "reasons": reasons(unplaced),
+            "suggestion": suggest_tuning(notes[stem], stem, choice["tuning"], choice["capo"]),
+        }
+    return staves, facts
+
+
+@router.get("/{job_id}/transcription.alphatex")
+def get_transcription_alphatex(
+    job_id: str,
+    stems: str = Query(default="", max_length=256, description="Comma-separated stem names"),
+    parts: int = Query(default=QUANTIZE_PARTS_DEFAULT, description="Parts per beat"),
+    format: str = Query(default="text", pattern="^(text|json)$", description="text or json"),
+    unplaced: str = Query(
+        default="staff",
+        pattern="^(staff|omit)$",
+        description="Notes with no string and fret: on a staff of their own, or left out",
+    ),
+) -> Response:
+    """The quantised transcription as alphaTex, the text score alphaTab reads:
+    what the Notation view draws.
+
+    A track per stem. ``guitar`` and ``bass`` are staff notation, tablature or
+    both, as the song's tab choices say, with a string and fret for every note
+    the tuning reaches. Bars and time signatures come from the beat grid, and
+    a sync point per bar pins each bar to its time in the song, so a cursor
+    can follow the audio.
+
+    With ``format=json`` the text comes inside an object that also says what
+    it shows: the stems drawn, the stems that could be, the grid's confidence,
+    and for each fretted stem its tuning, how many notes found no place on the
+    instrument and why, and a tuning that would reach more of them.
+
+    A fretted stem shown as staff and tab is one staff, unless some of its
+    notes have no place on the instrument: then the staff with every note and
+    the tab are two staves, so nothing is hidden. ``unplaced=omit`` leaves
+    those notes out instead and keeps every stem to one staff, which is the
+    form a tab editor reads: the view makes its Guitar Pro file from that."""
+    from app.pipeline.notes_alphatex import alphatex_score
+
+    job, stems_dir = _done_job(job_id)
+    _check_parts(parts)
+    records = _records(stems_dir, stems)
+    grid = read_grid(stems_dir)
+    try:
+        notes = _with_notes(_quantised(records, grid, parts))
+    except NoBeatGrid:
+        return _no_grid()
+    assert grid is not None
+    beats = grid_beats(grid)
+    bars = bars_of(grid, len(beats))
+    staves, facts = _fingered(stems_dir, notes, parts)
+    text = alphatex_score(
+        notes,
+        bars,
+        beats,
+        parts,
+        title=job.title or "",
+        bpm=grid.get("bpm") or job.bpm,
+        key_name=job.key,
+        scale=getattr(job, "scale", None),
+        tabs=staves,
+        split_unplaced=unplaced == "staff",
+    )
+    if format == "text":
+        return Response(content=text, media_type=_ALPHATEX_TYPE, headers=_NO_STORE)
+    every = _records(stems_dir, "")
+    return JSONResponse(
+        {
+            "job_id": job_id,
+            "parts": parts,
+            "stems": list(notes),
+            # Every stem with notes, shown or not: what the view can offer.
+            "available": [name for name, record in every.items() if record["notes"]],
+            # Stems drawn as one voice whose held notes may be shortened.
+            # Not the drums: a hit has no length to lose.
+            "polyphonic": [
+                name for name in notes if name != "drums" and not _monophonic(records[name])
+            ],
+            "bars": len(bars),
+            "grid": _grid_summary(grid),
+            "tab": facts,
+            # What each download of these stems is called: named after the
+            # song, as the download endpoints name them. The Guitar Pro file
+            # is made from this text by alphaTab, so its name comes from here.
+            "file_names": {
+                "midi_played": _file_name(job, "_notes", "mid"),
+                "midi_quantised": _file_name(job, "_notes_quantised", "mid"),
+                "musicxml": _file_name(job, "", "musicxml"),
+                "guitar_pro": _file_name(job, "", "gp"),
+            },
+            "alphatex": text,
+        },
+        headers=_NO_STORE,
+    )
+
+
+def _guitar_pro_path(job_id: str) -> Path:
+    return _GUITAR_PRO_DIR / f"{job_id}.gp"
+
+
+def _is_guitar_pro(data: bytes) -> bool:
+    """Whether ``data`` is a Guitar Pro 7 file: a zip with a score in it."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            return _GUITAR_PRO_SCORE in archive.namelist()
+    except (zipfile.BadZipFile, OSError, ValueError):
+        return False
+
+
+def _drop_stale_guitar_pro(now: float) -> None:
+    """Remove held files nobody came back for."""
+    if not _GUITAR_PRO_DIR.is_dir():
+        return
+    for path in _GUITAR_PRO_DIR.iterdir():
+        try:
+            if now - path.stat().st_mtime > _GUITAR_PRO_KEEP_SEC:
+                path.unlink(missing_ok=True)
+        except OSError:
+            continue
+
+
+@router.post("/{job_id}/transcription.gp")
+async def hold_guitar_pro(job_id: str, request: Request) -> Response:
+    """Hold a Guitar Pro file for download.
+
+    The Notation view makes the song's Guitar Pro file itself, with alphaTab,
+    from the same score it draws. A file made in a page can be saved by a
+    browser, but not by the desktop app, whose shell only saves what it
+    fetches from this server. So the view sends the file's bytes here, and
+    then downloads them from the GET below like any other export.
+
+    The body is the file. It is kept for a few minutes, one per song, and
+    answers with where to download it and what it is called."""
+    job, _stems_dir = _done_job(job_id)
+    data = await request.body()
+    if len(data) > _GUITAR_PRO_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="the Guitar Pro file is too large")
+    if not _is_guitar_pro(data):
+        raise HTTPException(status_code=422, detail="that is not a Guitar Pro (.gp) file")
+
+    def write() -> None:
+        _GUITAR_PRO_DIR.mkdir(parents=True, exist_ok=True)
+        _drop_stale_guitar_pro(time.time())
+        final = _guitar_pro_path(job_id)
+        tmp = final.with_name(f".{final.name}.{os.getpid()}.tmp")
+        try:
+            tmp.write_bytes(data)
+            os.replace(tmp, final)
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    await asyncio.to_thread(write)
+    return JSONResponse(
+        {
+            "job_id": job_id,
+            "url": f"/api/jobs/{job_id}/transcription.gp",
+            "file_name": _file_name(job, "", "gp"),
+            "bytes": len(data),
+        },
+        headers=_NO_STORE,
+    )
+
+
+@router.get("/{job_id}/transcription.gp")
+def get_guitar_pro(job_id: str) -> Response:
+    """The Guitar Pro file the Notation view last made for this song, named
+    after the song. 404 when none is waiting: it is made on demand by the view
+    (POST above) and kept only for a few minutes."""
+    job, _stems_dir = _done_job(job_id)
+    path = _guitar_pro_path(job_id)
+    try:
+        fresh = time.time() - path.stat().st_mtime <= _GUITAR_PRO_KEEP_SEC
+    except OSError:
+        fresh = False
+    if not fresh:
+        path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=404,
+            detail="no Guitar Pro file is waiting: make it again from the Notation view",
+        )
+    return _download(path.read_bytes(), _GUITAR_PRO_TYPE, _file_name(job, "", "gp"))
+
+
+def _tab_payload(job_id: str, choices: dict[str, dict]) -> dict:
+    return {
+        "job_id": job_id,
+        "stems": choices,
+        "presets": {
+            stem: {name: list(strings) for name, strings in presets.items()}
+            for stem, presets in TAB_TUNINGS.items()
+        },
+        "displays": list(TAB_DISPLAYS),
+        "max_capo": TAB_MAX_CAPO,
+        "custom": {
+            "min_strings": TAB_CUSTOM_STRINGS_MIN,
+            "max_strings": TAB_CUSTOM_STRINGS_MAX,
+            "min_pitch": TAB_CUSTOM_PITCH_MIN,
+            "max_pitch": TAB_CUSTOM_PITCH_MAX,
+        },
+    }
+
+
+class TabChoice(BaseModel):
+    """One stem's choices. Only what is sent is changed. The values are
+    checked in app/core/tab_files.py, which says what is wrong with them."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    preset: str | None = Field(default=None, max_length=32)
+    tuning: list[StrictInt] | None = Field(default=None, max_length=16)
+    capo: StrictInt | None = None
+    display: str | None = Field(default=None, max_length=16)
+
+
+class TabRequest(BaseModel):
+    # A field per stem that can be tab (app.core.config.TAB_STEMS).
+    model_config = ConfigDict(extra="forbid")
+
+    guitar: TabChoice | None = None
+    bass: TabChoice | None = None
+
+
+@router.get("/{job_id}/transcription/tab")
+def get_tab(job_id: str) -> Response:
+    """The song's tablature choices for each fretted stem: the tuning (a named
+    preset or custom strings, as open-string MIDI pitches, lowest first), the
+    capo, and whether the stem is drawn as staff, tab or both. A song that has
+    never been given any has standard tuning, no capo and both. The tunings on
+    offer ride along."""
+    _job, stems_dir = _done_job(job_id)
+    return JSONResponse(_tab_payload(job_id, read_tab(stems_dir)), headers=_NO_STORE)
+
+
+@router.patch("/{job_id}/transcription/tab")
+def patch_tab(job_id: str, body: TabRequest) -> Response:
+    """Change tablature choices: ``{"guitar": {"preset": "drop_d", "capo": 2,
+    "display": "tab"}}``. A stem takes ``preset`` (one of the tunings on
+    offer) or ``tuning`` (four to eight open-string pitches), and may set
+    ``capo`` and ``display``; what is left out stays as it was. Nothing is
+    saved when any part is refused. No transcription runs: the next score and
+    the next download are fingered for the new choices."""
+    _job, stems_dir = _done_job(job_id)
+    changes = {
+        stem: choice.model_dump(exclude_unset=True)
+        for stem in TAB_STEMS
+        if (choice := getattr(body, stem)) is not None
+    }
+    try:
+        choices = update_tab(stems_dir, changes)
+    except TabSettingsError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return JSONResponse(_tab_payload(job_id, choices), headers=_NO_STORE)
