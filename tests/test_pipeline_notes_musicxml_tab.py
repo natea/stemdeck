@@ -243,6 +243,33 @@ def test_voices_are_numbered_from_one():
     assert b"<voice>" not in musicxml_score({"vocals": line}, bars, 4)
 
 
+def test_no_staff_has_more_than_four_voices():
+    """MuseScore holds four voices on a staff and refuses a file with more
+    ("may be corrupted"). Seven overlapping spans used to become seven voices,
+    and on a fretted part the notation's voices 5 and up shared numbers with
+    the tab staff's. Found with a real song's score (Hideaway)."""
+    # Seven notes of different lengths that all overlap at beat 2.
+    piled = [_q(48 + 2 * i, i, 32 - 3 * i) for i in range(7)]
+    grid = _grid()
+    bars = bars_of(grid, len(grid["beats"]))
+    for name, tabs in (("piano", None), ("guitar", _tab("guitar", piled))):
+        part = _part(ET.fromstring(musicxml_score({name: piled}, bars, 4, tabs=tabs)), name)
+        for measure in part.findall("measure"):
+            by_staff: dict[str, set[str]] = {}
+            for n in measure.findall("note"):
+                by_staff.setdefault(n.findtext("staff") or "1", set()).add(n.findtext("voice"))
+            assert all(len(v) <= 4 for v in by_staff.values())
+            assert not by_staff.get("1", set()) & by_staff.get("2", set())
+        # Every pitch is still written somewhere.
+        pitches = {_midi_of(p) for p in part.iter("pitch")}
+        assert pitches == {n.pitch for n in piled}
+
+
+def _midi_of(pitch: ET.Element) -> int:
+    alter = int(float(pitch.findtext("alter") or 0))
+    return 12 * (int(pitch.findtext("octave")) + 1) + _STEPS[pitch.findtext("step")] + alter
+
+
 def test_a_notation_program_reads_it_back():
     from music21 import articulations, converter
 

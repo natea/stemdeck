@@ -527,6 +527,19 @@ def test_a_skipped_silent_stem_is_no_track_and_no_part(client, jobs_dir):
     assert client.get(f"/api/jobs/{JOB}/transcription.mid?stems=piano").status_code == 404
 
 
+def test_a_title_with_typographic_punctuation_still_downloads_as_midi(client, jobs_dir):
+    """MIDI text is Latin-1. A title with an en dash ("Hideaway \u2013 Jacob
+    Collier") made both MIDI downloads fail with a 500, which the browser
+    showed as a failed transcription.txt."""
+    job = _song(jobs_dir)
+    job.title = "Hideaway \u2013 Jacob Collier \u201cLive\u201d \u266b"
+    _store(jobs_dir, "bass", [_note(0.97, 1.4, 40)])
+    for query in ("", "?quantize=1"):
+        r = client.get(f"/api/jobs/{JOB}/transcription.mid{query}")
+        assert r.status_code == 200
+        assert _track_names(_midi(r))[0] == 'Hideaway - Jacob Collier "Live" ?'
+
+
 def test_a_song_with_no_title_still_gets_a_file_name(client, jobs_dir):
     job = _song(jobs_dir)
     job.title = None

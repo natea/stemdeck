@@ -135,14 +135,40 @@ def _drum_events(
     return out
 
 
+# A staff holds at most four voices in MuseScore and most other notation
+# programs, and a tab staff's voices are 5 to 8 (_TAB_VOICE_SHIFT). More
+# overlapping spans than that and MuseScore calls the file corrupted.
+_MAX_VOICES = 4
+
+
+def _within_voices(spans: Sequence) -> list[tuple[int, int, list[int]]]:
+    """``spans`` as (step, steps, pitches), cut so that no more than
+    ``_MAX_VOICES`` sound at once. When one more would start, the span that
+    began earliest is shortened to end there; if every sounding span began on
+    that same step, the new pitches join the one closest in length instead."""
+    kept: list[list] = []  # [step, steps, pitches]
+    for step, steps, members in spans:
+        pitches = sorted({m.pitch for m in members})
+        sounding = [s for s in kept if s[0] + s[1] > step]
+        if len(sounding) >= _MAX_VOICES:
+            earliest = min(sounding, key=lambda s: s[0])
+            if earliest[0] < step:
+                earliest[1] = step - earliest[0]
+            else:
+                closest = min(sounding, key=lambda s: abs(s[1] - steps))
+                closest[2] = sorted(set(closest[2]) | set(pitches))
+                continue
+        kept.append([step, steps, pitches])
+    return [(s[0], s[1], s[2]) for s in kept]
+
+
 def _pitched_events(notes: Sequence[QNote], unit: Fraction) -> list[tuple[Fraction, object]]:
     """Each chord span (app.pipeline.note_values.chord_spans) as a note or a
     chord. Spans that overlap are put into voices by music21."""
     from music21 import chord, duration, note
 
     out: list[tuple[Fraction, object]] = []
-    for step, steps, members in chord_spans(notes):
-        pitches = sorted({m.pitch for m in members})
+    for step, steps, pitches in _within_voices(chord_spans(notes)):
         element = note.Note(pitches[0]) if len(pitches) == 1 else chord.Chord(pitches)
         element.duration = duration.Duration(steps * unit)
         out.append((step * unit, element))

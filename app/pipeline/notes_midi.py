@@ -67,11 +67,32 @@ def _channels(stems: Sequence[str]) -> dict[str, int]:
     return out
 
 
+# Text in a MIDI file is Latin-1 (mido refuses anything else), so a title with
+# an en dash in it would fail the whole download. Typographic
+# punctuation becomes its ASCII look-alike and anything else outside Latin-1 a
+# question mark.
+_ASCII_PUNCTUATION = str.maketrans(
+    {
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2026": "...",
+    }
+)
+
+
+def _midi_text(text: str) -> str:
+    return text.translate(_ASCII_PUNCTUATION).encode("latin-1", "replace").decode("latin-1")
+
+
 def _track(name: str, channel: int, events: list[tuple[int, int, int, int]]) -> mido.MidiTrack:
     """A track from (tick, kind, pitch, velocity) events, kind 0 = off, 1 = on.
     Offs sort before ons at the same tick, so a repeated pitch re-attacks."""
     track = mido.MidiTrack()
-    track.append(mido.MetaMessage("track_name", name=name, time=0))
+    track.append(mido.MetaMessage("track_name", name=_midi_text(name), time=0))
     if channel != _DRUM_CHANNEL:
         track.append(
             mido.Message("program_change", channel=channel, program=_PROGRAMS.get(name, 0), time=0)
@@ -98,7 +119,7 @@ def as_played_midi(parts: Mapping[str, Sequence[Mapping]], title: str = "") -> b
     ``parts`` maps a stem name to its stored notes."""
     mid = mido.MidiFile(type=1, ticks_per_beat=PPQ)
     conductor = mido.MidiTrack()
-    conductor.append(mido.MetaMessage("track_name", name=title or "StemDeck", time=0))
+    conductor.append(mido.MetaMessage("track_name", name=_midi_text(title) or "StemDeck", time=0))
     conductor.append(mido.MetaMessage("set_tempo", tempo=_AS_PLAYED_TEMPO, time=0))
     conductor.append(mido.MetaMessage("end_of_track", time=0))
     mid.tracks.append(conductor)
@@ -170,7 +191,7 @@ def quantised_midi(
             last_sig = bar.beats
 
     conductor = mido.MidiTrack()
-    conductor.append(mido.MetaMessage("track_name", name=title or "StemDeck", time=0))
+    conductor.append(mido.MetaMessage("track_name", name=_midi_text(title) or "StemDeck", time=0))
     last = 0
     for tick, _order, msg in sorted(meta, key=lambda m: (m[0], m[1])):
         conductor.append(msg.copy(time=tick - last))
