@@ -69,6 +69,7 @@ import {
 } from "./transport.js";
 import { destroySections } from "./sections.js";
 import { destroyTimelineTags } from "./timelineTags.js";
+import { closeChordStrip } from "./chords/chordStrip.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
 
@@ -1014,6 +1015,7 @@ export function destroyPlayer() {
   document.querySelector(".app")?.classList.add("no-track");
   destroySections();
   destroyTimelineTags();
+  closeChordStrip();
   stopStemVuLoop();
   resetSpeed();
   resetPitch();

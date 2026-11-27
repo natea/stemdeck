@@ -50,6 +50,7 @@ const USES = {
   lyrics_gpu: "settings.models.purpose.lyricsGpu",
   lyrics_cpu: "settings.models.purpose.lyricsCpu",
   beats: "settings.models.purpose.beats",
+  chords: "settings.models.purpose.chords",
 };
 
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

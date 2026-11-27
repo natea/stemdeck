@@ -47,7 +47,7 @@ logger = logging.getLogger("stemdeck.registry")
 
 REGISTRY_VERSION = 2
 
-Operation = Literal["pipeline", "fill", "split", "retime", "reextract", "midi"]
+Operation = Literal["pipeline", "fill", "split", "retime", "reextract", "midi", "chords"]
 
 _jobs: dict[str, Job] = {}
 # Active subprocesses keyed by job id and operation. Lets POST /cancel

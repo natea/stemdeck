@@ -1,0 +1,201 @@
+/* The Chords strip (Labs, static/js/chords/chordStrip.js): a song's chord
+   timeline under the Markers bar, one block per chord, lit as playback goes.
+
+   A ribbon like Sections, Markers and the lyrics lane (daw.css): a 300px
+   header column and an area whose inner track is the zoomed waveform's width,
+   slid by transport.js syncRulerScroll, so a block at a percentage of the
+   track sits over the audio it names at any zoom.
+
+   A stylesheet of its own, badge included, so the strip depends on no other
+   Labs feature's styles and none of them depends on these. */
+
+/* ── The rail button ── */
+.rail-chords { position: relative; }
+.rail-chords[hidden] { display: none; }
+.rail-chords[aria-pressed="true"] { color: var(--accent); background: var(--panel); }
+.rail-chords:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+/* Karaoke and Performance own the window: no strip to switch there. */
+html.karaoke-open .rail-chords,
+html.streamer-open .rail-chords { display: none; }
+
+.chords-badge {
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: var(--bg, #050b10);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.rail-chords > .chords-badge { position: absolute; top: -3px; right: -7px; }
+
+/* ── The ribbon ── */
+.daw-chords-ribbon {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.daw-chords-ribbon[hidden] { display: none; }
+.daw.is-import .daw-chords-ribbon,
+.daw.no-track .daw-chords-ribbon { display: none; }
+.daw-chords-header { padding-top: 3px; padding-bottom: 3px; }
+.daw-chords-body { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-2); }
+.daw-sections-area.daw-chords-area { flex: none; height: 30px; }
+.daw-sections-area.daw-chords-area[hidden] { display: none; }
+
+/* What the strip has to say: nothing detected yet, the step a run is in, why
+   one failed, that corrections are being shown. One line, in the area's own
+   column, and it does not scroll with the track. */
+.chords-note {
+  margin: 0;
+  padding: 4px 12px 5px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.chords-note[hidden] { display: none; }
+.chords-note.problem { color: var(--warn, #e6a23c); }
+
+/* Header buttons that are a sign, not a word: the column is 300px, and in
+   German the words alone would fill it. */
+.chords-icon-btn { padding: 3px 6px; min-width: 24px; justify-content: center; font-variant-numeric: tabular-nums; }
+.chords-icon-btn[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.sections-add-btn-label.chords-reset.armed {
+  color: var(--warn, #e6a23c);
+  border-color: color-mix(in srgb, var(--warn, #e6a23c) 55%, transparent);
+}
+.daw-chords-header .sections-add-btn-label[hidden] { display: none; }
+.daw-chords-header .sections-add-btn-label:disabled { opacity: 0.4; cursor: not-allowed; }
+.daw-chords-header .sections-add-btn-label:focus-visible,
+.chord-block:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+
+/* ── Chord blocks ── */
+/* A block is as wide as its chord lasts, which at full zoom-out is often a
+   few pixels. So its symbol is not clipped to it: half a symbol is another
+   chord. The label may run on over the blocks after it, and chordStrip.js
+   draws every one there is room for, hiding (.label-hidden), whole, only
+   those that would run into another. */
+.chord-block {
+  position: absolute;
+  top: 3px; bottom: 3px;
+  box-sizing: border-box;
+  min-width: 2px;
+  margin: 0;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  /* A quiet tick: on a busy song there is one every few pixels. */
+  border-left: 1px solid var(--border-strong);
+  border-radius: 0 3px 3px 0;
+  color: var(--fg-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: visible;
+}
+.chord-block:hover { background: rgba(255, 255, 255, 0.09); color: var(--fg); border-left-color: var(--fg-2); }
+/* chordStrip.js may squeeze a label sideways (scaleX) to make it fit. */
+.chord-block-label { white-space: nowrap; pointer-events: none; transform-origin: left center; }
+.chord-block.label-hidden .chord-block-label { visibility: hidden; }
+/* The chord that is sounding. */
+.chord-block.current {
+  color: var(--bg);
+  background: var(--accent);
+  border-left-color: var(--accent);
+}
+/* The chord that is sounding, the one under the pointer and the one being
+   corrected always show their symbol, on a plate of its own that lies over
+   the neighbours when the block is too narrow to hold it. */
+.chord-block.current,
+.chord-block:hover,
+.chord-block:focus-visible,
+.chord-block.selected { z-index: 4; }
+.chord-block.current .chord-block-label,
+.chord-block:hover .chord-block-label,
+.chord-block:focus-visible .chord-block-label,
+.chord-block.selected .chord-block-label {
+  visibility: visible;
+  /* At its full width, whatever it was squeezed to. */
+  transform: none !important;
+  margin: 0 -4px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  color: var(--fg);
+}
+.chord-block.current .chord-block-label { background: var(--accent); color: var(--bg); }
+/* "No chord": a gap. It is still a block, so that in Edit it can be given a
+   chord; outside Edit it shows nothing and does nothing. */
+.chord-block.none { background: none; border-left-color: transparent; cursor: default; }
+.chord-block.none:hover { background: none; }
+.chord-block.none.current { background: none; }
+.chord-block.none .chord-block-label { display: none; }
+.daw-chords-ribbon.editing .chord-block { cursor: text; }
+.daw-chords-ribbon.editing .chord-block.none {
+  cursor: text;
+  border-left: 1px dashed var(--border-strong);
+  background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(255, 255, 255, 0.03) 6px 12px);
+}
+.daw-chords-ribbon.editing .chord-block.none:hover { background: rgba(255, 255, 255, 0.07); }
+.chord-block.selected { outline: 1px solid var(--accent); outline-offset: -1px; }
+/* The chords of the last run, while a new one is being made. */
+.daw-chords-ribbon.running .chord-block { opacity: 0.45; }
+
+.chords-playhead { position: absolute; inset: 0; pointer-events: none; will-change: transform; z-index: 5; }
+.chords-playhead i { position: absolute; top: 0; bottom: 0; left: 0; width: 1px; background: var(--accent); opacity: 0.8; }
+
+/* ── The correction popover ── */
+.chords-popover {
+  position: fixed;
+  z-index: 60;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  color: var(--fg);
+  font-size: 12px;
+}
+.chords-popover[hidden] { display: none; }
+.chords-pop-row { display: flex; gap: 6px; align-items: center; }
+/* Four buttons whose words are longer in most languages than in English:
+   they wrap onto a second line instead of leaving the box. */
+.chords-pop-actions { margin-top: 8px; flex-wrap: wrap; }
+.chords-pop-label { font-size: 10px; font-weight: 600; color: var(--muted); margin: 0 0 4px; display: block; }
+.chords-pop-input {
+  flex: 1; min-width: 0; height: 28px; padding: 0 8px;
+  background: var(--bg-2); border: 1px solid var(--border-strong); border-radius: 6px;
+  color: var(--fg); font: inherit; font-size: 13px; font-weight: 600;
+}
+.chords-pop-input:focus { outline: none; border-color: var(--accent); }
+.chords-pop-input[aria-invalid="true"] { border-color: var(--warn, #e6a23c); }
+.chords-pop-btn {
+  height: 26px; padding: 0 9px; border-radius: 6px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  color: var(--fg-2); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.chords-pop-btn:hover { background: var(--panel-2); color: var(--fg); }
+.chords-pop-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chords-pop-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.chords-pop-btn.primary { height: 28px; background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.chords-pop-btn.primary:hover { filter: brightness(1.08); color: var(--bg); }
+.chords-pop-btn.danger:hover { color: var(--warn, #e6a23c); }
+.chords-pop-error { margin: 6px 0 0; font-size: 11px; line-height: 1.35; color: var(--warn, #e6a23c); }
+.chords-pop-error[hidden] { display: none; }
+.chords-pop-hint { margin: 6px 0 0; font-size: 10.5px; line-height: 1.35; color: var(--muted); }

@@ -16,6 +16,7 @@ import { splitReason, splitReasonText, noteSplitOutcome, effectiveVocalSplitMode
 import { reloadKeepingPlace } from "./reloadPlace.js";
 import { initSections } from "./sections.js";
 import { initTimelineTags } from "./timelineTags.js";
+import { openChordStrip } from "./chords/chordStrip.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
 import { formatKey } from "./keyLabel.js";
@@ -601,6 +602,7 @@ async function finishDoneJob(state) {
   initSections(finalState.job_id, finalState.sections, finalState.duration || 0);
   // A song just separated has no tags yet, but the bar needs the song to add one.
   initTimelineTags(finalState.job_id, finalState.timeline_tags, finalState.duration || 0);
+  openChordStrip(finalState.job_id, { key: finalState.key, duration: finalState.duration || 0 });
   // The card names the song and its band now, as it does when the track is
   // opened from the library, rather than only after it is reopened (#699).
   paintFinishedTrackNames(finalState.job_id);

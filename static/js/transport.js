@@ -968,6 +968,9 @@ export function syncRulerScroll() {
   // The Tags bar (timelineTags.js, #1075), the same kind of strip again.
   const tagsTrack = document.getElementById("daw-tags-track");
   if (tagsTrack) tagsTrack.style.transform = shift;
+  // The Chords strip (chords/chordStrip.js), the same kind of strip again.
+  const chordsTrack = document.getElementById("daw-chords-track");
+  if (chordsTrack) chordsTrack.style.transform = shift;
 }
 
 export function applyWaveZoom() {

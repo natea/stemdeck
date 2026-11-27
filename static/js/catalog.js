@@ -5,6 +5,7 @@ import { applyServerVersions, deleteVersion, openVersion, versionLabel, versionS
 import { activeVersionId, songVersions } from "./versionScope.js";
 import { initSections } from "./sections.js";
 import { initTimelineTags } from "./timelineTags.js";
+import { openChordStrip } from "./chords/chordStrip.js";
 import { audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, selectedStems, titleEl } from "./state.js";
 import { trackFormat, formatIconSvg, paintNowPlayingArt } from "./formatIcon.js";
 import { formatKey } from "./keyLabel.js";
@@ -1410,6 +1411,9 @@ async function loadTrackIntoStudio(trackId) {
   wireUpAudio(trackId, [...track.audioStems, ...takeStemsFromJob(track.takes, shownTracks(trackId, track.tracks))], track.duration || 0, track.thumb, track.title || "", peaksPromise, track.hasVideo ?? false, track.videoStatus ?? null);
   initSections(trackId, track.sections, track.duration || 0);
   initTimelineTags(trackId, track.timelineTags, track.duration || 0);
+  // The Chords strip (Labs): it fetches the song's chords itself, and only
+  // when it is switched on.
+  openChordStrip(trackId, { key: track.key, duration: track.duration || 0 });
   // Its lanes change when the split ends.
   if (track.vocalSplit === "running") followVocalSplit(trackId);
   // Not awaited: the track is already loading, and the answer arrives as a

@@ -118,6 +118,9 @@ _BEAT_LICENSE = "MIT"
 #     says the code and the model weights are MIT (the files StemDeck fetches
 #     are the ones its package names). beat_this: its repository, by Foscarin,
 #     Schlueter and Widmer at JKU Linz.
+#   lv-chordia (read 2026-11-27): the authors' repository at Music X Lab,
+#     MIT by its LICENSE, for the ISMIR 2019 paper by Jiang, Chen, Li and
+#     Xia. Its cache_data folder holds the five checkpoints StemDeck fetches.
 _DEMUCS_SOURCE = ("Meta AI (Rouard, Massa, Défossez)", "https://github.com/facebookresearch/demucs")
 _SOURCES: dict[str, tuple[str, str]] = {
     "htdemucs_6s": _DEMUCS_SOURCE,
@@ -134,6 +137,10 @@ _SOURCES: dict[str, tuple[str, str]] = {
     "beat_this": (
         "Foscarin, Schlüter and Widmer (JKU Linz)",
         "https://github.com/CPJKU/beat_this",
+    ),
+    "lv_chordia": (
+        "Music X Lab (Jiang, Chen, Li, Xia)",
+        "https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition",
     ),
 }
 
@@ -424,6 +431,25 @@ def _beat_this() -> dict[str, Any]:
     )
 
 
+def _lv_chordia() -> dict[str, Any]:
+    from app.core.config import CHORDS_CHECKPOINT_SIZE
+    from app.pipeline import chord_engine
+
+    state, size = _located(chord_engine.checkpoint_paths)
+    return _entry(
+        chord_engine.ENGINE_ID,
+        "analysis",
+        "chords",
+        "lv-chordia (Large-Vocabulary Chord Recognition)",
+        license=chord_engine.ENGINE_LICENCE,
+        source=source_of("lv_chordia"),
+        state=state,
+        size=size,
+        download_bytes=sum(CHORDS_CHECKPOINT_SIZE.values()),
+        available=chord_engine.vendored(),
+    )
+
+
 def _downloadable(entry: dict[str, Any]) -> bool:
     from app.core import model_get
 
@@ -445,6 +471,7 @@ def inventory() -> dict[str, Any]:
         _ymt3(),
         *_whisper(),
         _beat_this(),
+        _lv_chordia(),
     ]
     for entry in models:
         entry["downloadable"] = _downloadable(entry)

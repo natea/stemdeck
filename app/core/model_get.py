@@ -222,6 +222,19 @@ def _plan(model_id: str) -> Plan | None:
                 ),
             ),
         )
+    if model_id == "lv_chordia":
+        from app.pipeline import chord_engine
+
+        # The pipeline family: a chord detection holds the pipeline lock, so
+        # this download and a detection's own never write the same files.
+        return Plan(
+            model_id,
+            "pipeline",
+            tuple(
+                PlanFile(f.url, f.sha256, f.size, stem_models.model_path(f), "verified")
+                for f in chord_engine.checkpoint_files()
+            ),
+        )
     if model_id == "ymt3":
         from app.pipeline import ymt3
 

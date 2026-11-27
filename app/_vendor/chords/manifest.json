@@ -1,0 +1,54 @@
+{
+  "id": "e68715822e274538",
+  "packages": [
+    {
+      "name": "lv-chordia",
+      "version": "1.1.0",
+      "wheel": "lv_chordia-1.1.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/80/76/02402f0182378f6157497ee7cafce62e72e4b05993e090ca29670b973fa3/lv_chordia-1.1.0-py3-none-any.whl",
+      "sha256": "292241f03e1029e6739ee7a2a91fbe348c25c97b8b3641db76cbef9f9dee0cb0",
+      "size": 27182788,
+      "licence": "MIT",
+      "packages": [
+        "lv_chordia"
+      ],
+      "dist_info": "lv_chordia-1.1.0.dist-info",
+      "removed": [
+        "lv_chordia-1.1.0.data/data/share/lv-chordia/cache_data/joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s0.best.sdict",
+        "lv_chordia-1.1.0.data/data/share/lv-chordia/cache_data/joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s1.best.sdict",
+        "lv_chordia-1.1.0.data/data/share/lv-chordia/cache_data/joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s2.best.sdict",
+        "lv_chordia-1.1.0.data/data/share/lv-chordia/cache_data/joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s3.best.sdict",
+        "lv_chordia-1.1.0.data/data/share/lv-chordia/cache_data/joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s4.best.sdict",
+        "lv_chordia/data/all_1217.csv",
+        "lv_chordia/data/chord_placeholder.lab",
+        "lv_chordia/data/chordino.n3",
+        "lv_chordia/data/complex_chord_structure.xlsx",
+        "lv_chordia/data/cross_subpart_weight0.pkl",
+        "lv_chordia/data/cross_subpart_weight1.pkl",
+        "lv_chordia/data/cross_subpart_weight2.pkl",
+        "lv_chordia/data/cross_subpart_weight3.pkl",
+        "lv_chordia/data/cross_subpart_weight4.pkl",
+        "lv_chordia/data/cross_weight0.pkl",
+        "lv_chordia/data/cross_weight1.pkl",
+        "lv_chordia/data/cross_weight2.pkl",
+        "lv_chordia/data/cross_weight3.pkl",
+        "lv_chordia/data/cross_weight4.pkl",
+        "lv_chordia/data/midi_template.svl",
+        "lv_chordia/data/test00.csv",
+        "lv_chordia/data/test01.csv",
+        "lv_chordia/data/test02.csv",
+        "lv_chordia/data/test03.csv",
+        "lv_chordia/data/test04.csv",
+        "lv_chordia/data/train00.csv",
+        "lv_chordia/data/train01.csv",
+        "lv_chordia/data/train02.csv",
+        "lv_chordia/data/train03.csv",
+        "lv_chordia/data/train04.csv"
+      ],
+      "files": 45
+    }
+  ],
+  "shim": [
+    "shim/h5py/__init__.py"
+  ]
+}

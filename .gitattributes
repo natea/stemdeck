@@ -17,3 +17,7 @@ app/_vendor/piano_hr/** -text
 # The same for YourMT3+ (app/_vendor/ymt3): its files are checked against the
 # Hugging Face Space's own git blob ids and the hashes in manifest.json.
 app/_vendor/ymt3/** -text
+
+# The same for the chord model (app/_vendor/chords): its package files are
+# checked against the wheel's RECORD by tests/test_chords_vendor.py.
+app/_vendor/chords/** -text

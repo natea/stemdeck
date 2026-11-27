@@ -59,7 +59,23 @@ def get_config() -> dict:
     # existing clients that assume "every job produces exactly these stems"
     # are unaffected; new clients merge it into their lane vocab (see
     # syncStemNamesFromAPI in static/js/constants.js).
-    return {"stem_names": list(STEM_NAMES), "extra_stem_names": list(EXTRA_STEM_NAMES)}
+    return {
+        "stem_names": list(STEM_NAMES),
+        "extra_stem_names": list(EXTRA_STEM_NAMES),
+        # Chord detection (POST /api/jobs/{id}/chords). False where the
+        # vendored detector is not all there: the client then offers no
+        # control to detect with.
+        "chords_available": chords_available(),
+    }
+
+
+def chords_available() -> bool:
+    """Whether this install can detect chords: the vendored model code is all
+    there (app/pipeline/chord_engine.py, cheap file lookups). Its checkpoints
+    are downloaded the first time chords are detected."""
+    from app.pipeline import chord_engine
+
+    return chord_engine.vendored()
 
 
 @router.get("/models")

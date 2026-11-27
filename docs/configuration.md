@@ -47,6 +47,9 @@
 | `STEMDECK_TIMEOUT_MIDI_MODEL_DOWNLOAD` | `3600` | Stop the first-use download of an engine's checkpoint (ByteDance Piano Transcription 172 MB, YourMT3+ 562 MB) after this many seconds in all (60 or more). |
 | `STEMDECK_TIMEOUT_MIDI_YMT3` | `14400` | Stop a YourMT3+ run after this many seconds in all (60 or more). On a 24-thread CPU it took 53 s per minute of audio on a bass stem, 114 s on a dense piano. |
 | `STEMDECK_TIMEOUT_MIDI_MODEL_PREPARE` | `3600` | Stop the one-time making of YourMT3+'s weights from its checkpoint after this many seconds in all (60 or more). |
+| `STEMDECK_CHORDS_VOCABULARY` | `full` | Which chord list the chord detector answers from: `full` (172 chord types, with sixths, altered dominants and minor-major sevenths), `submission` (25 types) or `ismir2017`. The other two are for comparison runs. A value that names none is ignored. |
+| `STEMDECK_TIMEOUT_CHORDS` | `900` | Stop the chord detection worker if it is silent this many seconds. Never less than 30. A song normally takes under a minute. |
+| `STEMDECK_TIMEOUT_CHORDS_MODEL_DOWNLOAD` | `900` | Stop the first-use download of the chord model (five files, 29 MB) after this many seconds in all. Never less than 60. |
 | `STEMDECK_YMT3_GPU_MIN_FREE_MB` | `3584` | Free GPU memory a YourMT3+ run needs to start on the GPU; with less it runs on the CPU. |
 | `STEMDECK_PIANO_HR_GPU_MIN_FREE_MB` | `2048` | Free GPU memory (MB) a ByteDance Piano Transcription run needs to start on the GPU; with less it runs on the CPU. |
 | `STEMDECK_SSL_CERT` | (none) | PEM certificate; set with the key below to serve https directly. |

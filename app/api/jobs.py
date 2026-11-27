@@ -857,6 +857,14 @@ def cancel_job(job_id: str) -> dict:
             proc = registry_get_proc(job_id, "split")
             if proc is not None and proc.poll() is None:
                 proc.terminate()
+        # A chord detection (POST .../chords), the same again. Its worker
+        # writes the chord file as its last step, so a stopped one leaves the
+        # chords the song had.
+        elif job.chords == "running":
+            job.cancel_requested = True
+            proc = registry_get_proc(job_id, "chords")
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
         # A line-by-line timing of its lyrics (POST .../lyrics/retime) stops
         # the same way: the run sees its own flag, never the job's, and
         # leaves the lyrics as they were.
@@ -1094,7 +1102,8 @@ async def start_vocal_split(job_id: str) -> Response:
     # Refused, not queued behind it: starting it here cleared the cancel sent
     # to the fill. No await from here to "running", and the fill re-checks
     # after its own, so the two never both start.
-    if job.stem_fill == "running" or job.stem_reextract_running():
+    # A chord detection is reading the stems this would add to.
+    if job.stem_fill == "running" or job.stem_reextract_running() or job.chords == "running":
         raise JobBusy()
 
     stems_dir = (JOBS_DIR / job_id / "stems").resolve()

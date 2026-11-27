@@ -84,6 +84,9 @@ def test_lists_every_built_in_model_by_purpose(client, folders):
     assert bp["stems"] == ["vocals", "bass", "guitar", "piano", "other"]
     assert models["beat_this"]["group"] == "analysis"
     assert models["beat_this"]["use"] == "beats"
+    chords = models["lv_chordia"]
+    assert (chords["group"], chords["use"], chords["license"]) == ("analysis", "chords", "MIT")
+    assert chords["download_bytes"] == sum(config.CHORDS_CHECKPOINT_SIZE.values())
     lyrics = [m for m in body["models"] if m["use"].startswith("lyrics")]
     assert lyrics and all(m["group"] == "analysis" for m in lyrics)
     assert {m["group"] for m in body["models"]} == {"separation", "transcription", "analysis"}
@@ -290,6 +293,10 @@ SOURCES = {
     "whisper_turbo": ("OpenAI", "https://github.com/openai/whisper"),
     "whisper_small": ("OpenAI", "https://github.com/openai/whisper"),
     "beat_this": ("Foscarin, Schlüter and Widmer (JKU Linz)", "https://github.com/CPJKU/beat_this"),
+    "lv_chordia": (
+        "Music X Lab (Jiang, Chen, Li, Xia)",
+        "https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition",
+    ),
 }
 
 LICENCES = {
@@ -308,6 +315,8 @@ LICENCES = {
     # Its README: the code and the published weights are MIT. It said no
     # licence here before 2026-11-26.
     "beat_this": "MIT",
+    # The authors' repository: MIT by its LICENSE file.
+    "lv_chordia": "MIT",
 }
 
 

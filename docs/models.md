@@ -516,6 +516,81 @@ different precision feeding an autoregressive decoder): on one dense piano
 the CPU file scored 0.428 against the GPU's 0.357.
 
 
+## lv-chordia (on-demand chord detection)
+
+Chord detection (`POST /api/jobs/{id}/chords`, the Chords strip) runs one
+model on the whole song and stores a chord timeline with it. It is never part
+of an import.
+
+- **Runtime**: `lv-chordia` 1.1.0 (PyPI, MIT), an inference-only packaging of
+  the authors' research code, kept by openmirlab, the group behind
+  `all-in-one-infer`. Vendored in `app/_vendor/chords` as its wheel ships it,
+  minus its training data (that folder's README says what and why), and
+  loaded only by the chord worker. 1.1.0 is the last release on PyPI; the
+  project's GitHub head needs torch 2.13, which StemDeck does not ship. It
+  runs on the torch, librosa, numpy, joblib and pydub already in the lock,
+  so Intel macOS has it too. No change to `pyproject.toml` or `uv.lock`.
+  The package also imports `pretty_midi` (the copy vendored for MIDI is
+  used) and `h5py` (a stand-in that holds nothing: naming a chord never
+  touches it).
+- **Weights**: an ensemble of five checkpoints
+  (`joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s0` to `_s4`,
+  `.best.sdict`, 28.7 MB together). They are not shipped. The first
+  detection, or the Download button in Settings > Models, fetches them from
+  the authors' own repository
+  (`music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition`) at commit
+  `481f4ce703f8822b99f4037e9104ba1760e21ea3`, into the models folder under
+  `lv_chordia/`. After that, detection works offline. The same five files,
+  byte for byte, are in the lv-chordia wheel, which says of them: "All
+  pre-trained model weights (100% original)".
+- **Integrity**: a downloaded checkpoint is kept only at its pinned size and
+  SHA-256 (`CHORDS_CHECKPOINT_SIZE` and `CHORDS_CHECKPOINT_SHA256` in
+  `app/core/config.py`). The worker, which has no network, checks the
+  SHA-256 of each of the five again before the model is loaded, and refuses
+  to run on a mismatch: on torch 2.2 (Intel macOS) a checkpoint is loaded
+  with full unpickling. The wheel also carries ten pickled tables
+  (`lv_chordia/data/cross_*weight*.pkl`): they are training-time loss
+  weights, the inference path never opens them (`ChordNet(None)` in
+  `lv_chordia/chord_recognition.py`), and they are left out of the vendored
+  copy.
+- **Vocabulary**: the package's `full` chord list (380 chord labels on one root:
+  172 chord types, the rest the same types over a bass note), not its
+  default list of 25 types. See the change's proposal for the comparison.
+  Not all of the list can come out. The checkpoints have six triad classes
+  (major, minor, sus4, sus2, diminished, augmented), so the decoder drops
+  every label built on anything else: bare fifths, bare roots, and chords
+  written with a tone left out. Measured on the installed package, it
+  chooses from 228 of the 380 labels on each root (98 of 197 chord types).
+  Sevenths, sixths, ninths, elevenths, thirteenths and their alterations are
+  all among the 228.
+- **License**: MIT for the package, which states MIT in its metadata and
+  ships the license text ("Copyright (c) 2023 Music X Lab"). The weights are
+  distributed inside that package under the same license.
+- **Credit**: Junyan Jiang, Ke Chen, Wei Li, Gus Xia, "Large-Vocabulary Chord
+  Transcription via Chord Structure Decomposition", ISMIR 2019.
+- **Upstream**: https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition,
+  https://github.com/openmirlab/lv-chordia and
+  https://archives.ismir.net/ismir2019/paper/000078.pdf
+
+**Not checked**: the license terms of the datasets the checkpoints were
+trained on. As with the transcription models, the weights are used under the
+license their authors published them with.
+
+### Rejected alternatives
+
+- **BTC** (Bi-directional Transformer for Chord recognition): the repository
+  has not changed since 2020 and the license of its published weights is
+  disputed upstream.
+- **ChordMini / BTC-PL**: no license statement for the weights could be
+  confirmed.
+- **ChordFormer**: a paper with no published code or weights.
+- **SheetSage 2**: CC BY-NC weights behind an access gate.
+- **madmom**: its models are licensed for non-commercial use (the reason it
+  was rejected for beat tracking as well).
+- **crema**: needs TensorFlow.
+- **A chroma template matcher** (no model): tried on the same three songs.
+  It changed chord on almost every beat where the model held a steady vamp.
+
 ## UVR-MDX-NET Karaoke 2 (on-demand lead/backing vocal split, #275)
 
 - **File**: `UVR_MDXNET_KARA_2.onnx`

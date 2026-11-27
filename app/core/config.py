@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 logger = logging.getLogger("stemdeck.config")
@@ -1829,3 +1830,79 @@ def ensure_runtime_dirs() -> None:
     )
     for path in paths:
         path.mkdir(parents=True, exist_ok=True)
+
+
+# On-demand chord detection: lv-chordia, vendored in app/_vendor/chords, on
+# the whole song, in a worker of its own (app/pipeline/chords_worker.py).
+# See docs/models.md for the license basis.
+#
+# Which of the package's chord lists the decoder may answer from. "full" has
+# 172 chord types (sixths, altered dominants, minor-major sevenths, ...);
+# "submission", the package's own default, has 25. The other two are here for
+# comparison runs: STEMDECK_CHORDS_VOCABULARY=submission.
+CHORDS_VOCABULARIES: tuple[str, ...] = ("full", "submission", "ismir2017")
+CHORDS_VOCABULARY_DEFAULT = "full"
+
+
+def chords_vocabulary(environ: Mapping[str, str] | None = None) -> str:
+    """The chord list in use. A value that names none is ignored: a typo must
+    not turn detection off."""
+    env = os.environ if environ is None else environ
+    raw = env.get("STEMDECK_CHORDS_VOCABULARY", "").strip().lower()
+    return raw if raw in CHORDS_VOCABULARIES else CHORDS_VOCABULARY_DEFAULT
+
+
+CHORDS_VOCABULARY = chords_vocabulary()
+CHORDS_ENGINE = "lv-chordia"
+# The shortest chord the detected timeline keeps as its own entry, in beats. A
+# shorter one is given to its neighbours (app/pipeline/chord_snap.py).
+CHORDS_MIN_BEATS = 1.0
+# Longest silence from the chord worker before it is stopped. A song takes 15
+# to 40 seconds on a laptop CPU; this is for a machine that is swapping.
+TIMEOUT_CHORDS = max(30, _env_int("STEMDECK_TIMEOUT_CHORDS", 900))
+CHORDS_WATCHDOG_POLL_SEC = 10
+# What the worker hands the model: the song summed to one channel at the rate
+# the model resamples to anyway (lv_chordia.settings.DEFAULT_SR).
+CHORDS_SAMPLE_RATE = 22050
+# The five checkpoints of the ensemble (28.7 MB together), by file name. They
+# are not in the vendored package (app/_vendor/chords): they are fetched on
+# first use by the parent, never by the worker, from the authors' own
+# repository at a fixed commit, into MODELS_DIR/CHORDS_CHECKPOINT_RELDIR, and
+# each is kept only when its size and SHA-256 are the ones below
+# (app/core/model_fetch.py). The worker checks the SHA-256 of each again
+# before the model loads: on torch 2.2 (Intel macOS) a checkpoint is loaded
+# with full unpickling. The same five files ship in the lv-chordia 1.1.0
+# wheel; these are their hashes there too.
+CHORDS_CHECKPOINT_REVISION = "481f4ce703f8822b99f4037e9104ba1760e21ea3"
+CHORDS_CHECKPOINT_URL_BASE = (
+    "https://raw.githubusercontent.com/music-x-lab/"
+    "ISMIR2019-Large-Vocabulary-Chord-Recognition/"
+    f"{CHORDS_CHECKPOINT_REVISION}/cache_data/"
+)
+CHORDS_CHECKPOINT_RELDIR = "lv_chordia"
+CHORDS_CHECKPOINT_SHA256: dict[str, str] = {
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s0.best.sdict": (
+        "921b42d5d1cf9ce1c0c0e45a74d409b8066e0acec46058ef74e24ee0fb540761"
+    ),
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s1.best.sdict": (
+        "bcb75859e0efa256696cf5da396b320093317b9b1d9560c304f46c25fe1f8b17"
+    ),
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s2.best.sdict": (
+        "acddf85c3fff29954c4877021177d72e2cba9f729ce80c1010f054c477bf3f61"
+    ),
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s3.best.sdict": (
+        "65d81a3ab73435aaaade586981b4cabdf57b8953d76052703e6968c32ef8421c"
+    ),
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s4.best.sdict": (
+        "5ff6b0ec85640e17a09a9b3de68c93fdd45adc24488e8fa9be5715c28d561122"
+    ),
+}
+CHORDS_CHECKPOINT_SIZE: dict[str, int] = {
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s0.best.sdict": 5_746_183,
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s1.best.sdict": 5_746_175,
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s2.best.sdict": 5_746_179,
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s3.best.sdict": 5_746_175,
+    "joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s4.best.sdict": 5_746_227,
+}
+# Longest the first-use download of the five checkpoints may take in all.
+TIMEOUT_CHORDS_MODEL_DOWNLOAD = max(60, _env_int("STEMDECK_TIMEOUT_CHORDS_MODEL_DOWNLOAD", 900))

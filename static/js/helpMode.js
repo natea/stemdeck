@@ -187,6 +187,14 @@ const HELP = [
   [".tag-mark .tag-loop", "help.tagLoop"],
   [".tag-mark .tag-del", "help.tagDelete"],
   [".tag-mark", "help.tag"],
+  // The Chords strip (Labs, chords/chordStrip.js) and its button in the rail.
+  ["#t-chords-btn", "help.chordsButton"],
+  ["#chordsDetectBtn", "help.chordsDetect"],
+  ["#chordsCancelBtn", "help.chordsCancel"],
+  ["#chordsBassBtn", "help.chordsBass"],
+  ["#chordsEditBtn", "help.chordsEdit"],
+  ["#chordsResetBtn", "help.chordsReset"],
+  [".chord-block", "help.chordBlock"],
   // The lyrics lane, shown while Sync lines is on (lyricsLane.js).
   ["#lyricsLaneDone", "help.lyricsLaneDone"],
   [".lyr-mark", "help.lyricsMark"],

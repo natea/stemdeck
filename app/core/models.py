@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from app.core import midi_engines
+from app.core.chord_outcome import INTERRUPTED as CHORDS_INTERRUPTED
+from app.core.chord_outcome import message_for as chords_message_for
 from app.core.config import AUDIO_TAG_LYRICS_MAX_CHARS, AUDIO_TAG_MAX_CHARS, MIDI_STEMS
 from app.core.versions import VERSION_ID_RE, active_of, clean_versions, versions_of
 from app.core.vocal_split_outcome import INTERRUPTED, message_for
@@ -520,6 +522,20 @@ class Job:
     # each is in <job>/midi.json. A post-hoc action on a "done" job like
     # stem_fill: a run that fails or is cancelled leaves the file it had.
     midi: dict[str, dict[str, Any]] | None = None
+    # On-demand chord detection (POST .../chords), a post-hoc action on a
+    # "done" job like the vocal split: the whole song to a chord timeline,
+    # kept in stems/chords.json. "error" means the last run did not finish (a
+    # cancel, a stall, a failure, the app closing); the song is untouched and
+    # keeps whatever chords it had.
+    chords: Literal["none", "running", "done", "error"] = "none"
+    # Why the last run did not finish, while chords is "error": one of
+    # app.core.chord_outcome.CODES. None otherwise.
+    chords_reason: str | None = None
+    # Where a running detection is, for the strip that watches it:
+    # {"phase": "starting" | "mixing" | "loading" | "detecting" | "finishing",
+    #  "percent": 0-100 or None (detecting only)}.
+    # None when no run is in progress. Never saved: it describes a process.
+    chords_progress: dict[str, Any] | None = None
     # When the user put this job in the Trash, or None if they have not.
     #
     # Server-side on purpose. The Trash used to live only in the browser's
@@ -628,20 +644,27 @@ class Job:
             "stem_reextract": self.stem_reextract,
             "stem_undo": public_stem_undo(self.stem_undo),
             "midi": clean_midi(self.midi) or {},
+            "chords": self.chords,
+            "chords_reason": self.chords_reason,
+            # The API's own sentence for the reason, for a client with no
+            # translation of it.
+            "chords_message": chords_message_for(self.chords_reason),
+            "chords_progress": self.chords_progress if self.chords == "running" else None,
             "trashed_at": self.trashed_at,
             "favorite": self.favorite,
             "created_at": self.created_at,
         }
 
     def post_hoc_running(self) -> bool:
-        """A stem fill, a vocal split, a re-extract or a MIDI run is writing
-        into this song's folder. The queue statuses do not show it: the song
-        stays "done" meanwhile."""
+        """A stem fill, a vocal split, a re-extract, a MIDI run or a chord
+        detection is working in this song's folder. The queue statuses do not
+        show it: the song stays "done" meanwhile."""
         return (
             self.stem_fill == "running"
             or self.vocal_split == "running"
             or self.stem_reextract_running()
             or self.midi_running()
+            or self.chords == "running"
         )
 
     def midi_running(self, stem: str | None = None) -> bool:
@@ -722,11 +745,21 @@ class Job:
         for entry in (job.midi or {}).values():
             if entry["state"] == "running":
                 entry.update(state="error", pct=0, error_code="interrupted")
+        # Saved while a chord detection ran, so the process ended before it
+        # did. Left "running", every later attempt was refused.
+        if job.chords == "running":
+            job.chords = "error"
+            job.chords_reason = CHORDS_INTERRUPTED
+            job.stage_message = "Done"
+        if job.chords not in ("none", "done", "error"):
+            job.chords = "none"
+        if not isinstance(job.chords_reason, str):
+            job.chords_reason = None
         return job
 
 
 _JOB_FIELDS = frozenset(
     f.name
     for f in dataclasses.fields(Job)
-    if f.name not in ("cancel_requested", "stop_requested", "version")
+    if f.name not in ("cancel_requested", "stop_requested", "version", "chords_progress")
 )

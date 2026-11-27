@@ -158,6 +158,7 @@ In Performance mode:
 - **Synced lyrics** from LRCLIB, with timing you can fix by tapping along, or imported from a `.lrc` file you pick. With an NVIDIA GPU, or an AMD one on Linux, StemDeck can also write them down from the vocals when none are found.
 - **Song and artist details** from MusicBrainz, Wikipedia and, optionally, Discogs.
 - **MIDI from any stem,** the drums included, written down on your computer with an engine per stem: YourMT3+, which hears each instrument and keeps only the stem's own (downloaded the first time, 562 MB, and much faster with an NVIDIA graphics card), Spotify's open Basic Pitch, or for the piano ByteDance's piano transcription model, to open in your music software (not on Intel Macs).
+- **The chords of a song** (experimental, [Labs](docs/chords.md)). The **Chords** strip shows them along the timeline and lights the one that is sounding. They are detected on your computer when you ask (the model is downloaded the first time, 29 MB), written for the key you are hearing, and yours to correct: the result is a draft, and it is weakest on jazz.
 
 ### <img src="imgs/readme/export.svg" width="22" align="top" alt=""> Keep and share
 
@@ -256,6 +257,7 @@ StemDeck is free and **does not accept any money, sponsorship, or funding**  fro
 | **[Build from source](docs/build-from-source.md)** | The macOS app, a web server on any platform, Docker and Unraid |
 | **[Configuration](docs/configuration.md)** | Environment variables, and serving other devices over https |
 | **[HTTP API](docs/api.md)** | The endpoints the web app uses |
+| **[Chords](docs/chords.md)** | The Chords strip (Labs): how to use it, how good it is, how chords are stored |
 | **[Troubleshooting](docs/troubleshooting.md)** | Common problems, and what lives where on disk |
 | **[Model licenses](docs/models.md)** | Where each machine-learning model's license comes from |
 

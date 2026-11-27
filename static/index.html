@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/css/eq.css" />
     <link rel="stylesheet" href="/css/fx.css" />
     <link rel="stylesheet" href="/css/mastering.css" />
+    <link rel="stylesheet" href="/css/chords.css" />
     <link rel="stylesheet" href="/css/video.css" />
     <link rel="stylesheet" href="/css/karaoke.css" />
     <link rel="stylesheet" href="/css/streamer.css" />
@@ -322,6 +323,18 @@
                 <path d="M6 6c.4 1 1.3 1.6 2.3 1.6M18 6c-.4 1-1.3 1.6-2.3 1.6M4 12.6c1-.4 2.1-.2 2.8.5M20 12.6c-1-.4-2.1-.2-2.8.5M7.2 17.1c.8-.6 1.9-.7 2.8-.2M16.8 17.1c-.8-.6-1.9-.7-2.8-.2"/>
               </svg>
               <span data-i18n="mode.label">Mode</span>
+            </button>
+            <!-- Shows the Chords strip (Labs, static/js/chords/chordStrip.js)
+                 under the Markers bar. In the rail, where a Labs feature
+                 goes: the Collapse column is full. Hidden until
+                 chordStrip.js knows this install can detect chords, or the
+                 open song already has some. -->
+            <button class="rail-btn rail-chords" id="t-chords-btn" type="button" hidden aria-pressed="false" aria-controls="chordStrip" title="Chords (Labs)" aria-label="Chords" data-i18n-title="chords.openTitle" data-i18n-aria-label="chords.title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v9M15 5v9M3 14h18M7.5 14v5M12 14v5M16.5 14v5"/>
+              </svg>
+              <span data-i18n="chords.title">Chords</span>
+              <i class="chords-badge" data-i18n="chords.labs">Labs</i>
             </button>
             <button class="rail-btn rail-favorites" type="button" title="Favorites" aria-label="Favorites" aria-pressed="false" data-i18n-title="nav.favorites" data-i18n-aria-label="nav.favorites">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
@@ -655,6 +668,50 @@
             </div>
             <div class="daw-sections-area daw-tags-area">
               <div class="daw-sections-track daw-tags-track" id="daw-tags-track"></div>
+            </div>
+          </div>
+
+          <!-- Chords strip (Labs, static/js/chords/chordStrip.js): the song's
+               chord timeline, one block per chord, lit as playback goes.
+               Shown when the rail's Chords button is on. Its track is the
+               zoomed waveform's width and slides with it, like the bars
+               above. The line under the track is where the strip says what
+               it is doing or what went wrong. -->
+          <div class="daw-chords-ribbon" id="chordStrip" hidden>
+            <div class="daw-mixer-label daw-sections-header daw-chords-header">
+              <span class="daw-sections-title-group">
+                <span class="daw-label-title" data-i18n="chords.title">Chords</span>
+                <i class="chords-badge" data-i18n="chords.labs">Labs</i>
+              </span>
+              <span class="sections-header-actions">
+                <span class="sections-save-indicator hidden" id="chordsSaveIndicator" aria-live="polite"></span>
+                <!-- Signs, not words: with Detect beside them, words would
+                     overflow the 300px column in German. -->
+                <button class="sections-add-btn-label chords-icon-btn" id="chordsBassBtn" type="button" aria-pressed="false" title="Show bass notes, as slash chords like C/E" aria-label="Show bass notes" data-i18n-title="chords.bassTitle" data-i18n-aria-label="chords.bassAria">C/E</button>
+                <button class="sections-add-btn-label chords-icon-btn" id="chordsEditBtn" type="button" aria-pressed="false" title="Correct the chords: click one to change it" aria-label="Correct the chords" data-i18n-title="chords.editTitle" data-i18n-aria-label="chords.editAria">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+                </button>
+                <!-- Discards every correction at once and cannot be undone,
+                     so it arms on the first click and acts on the second,
+                     like Clear on the Sections bar. Hidden while there is
+                     nothing to discard. -->
+                <button class="sections-add-btn-label chords-icon-btn chords-reset" id="chordsResetBtn" type="button" hidden title="Go back to the detected chords" aria-label="Go back to the detected chords" data-i18n-title="chords.resetTitle" data-i18n-aria-label="chords.resetTitle">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+                  <span class="chords-reset-label" hidden data-i18n="chords.resetConfirm">Sure?</span>
+                </button>
+                <button class="sections-add-btn-label" id="chordsDetectBtn" type="button" title="Detect this song's chords. It listens to the whole song on this computer and takes under a minute." data-i18n-title="chords.detectTitle">
+                  <span data-i18n="chords.detect">Detect</span>
+                </button>
+                <button class="sections-add-btn-label" id="chordsCancelBtn" type="button" hidden>
+                  <span data-i18n="chords.cancel">Cancel</span>
+                </button>
+              </span>
+            </div>
+            <div class="daw-chords-body">
+              <div class="daw-sections-area daw-chords-area" id="daw-chords" hidden>
+                <div class="daw-sections-track daw-chords-track" id="daw-chords-track"></div>
+              </div>
+              <p class="chords-note" id="chordsNote" role="status" aria-live="polite" hidden></p>
             </div>
           </div>
 

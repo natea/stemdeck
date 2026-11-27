@@ -258,6 +258,19 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
+lv-chordia (chord recognition code)
+License: MIT
+Website: https://github.com/openmirlab/lv-chordia
+         https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition
+StemDeck can name the chords of a song with the model of Jiang, Chen, Li and
+Xia, "Large-Vocabulary Chord Transcription via Chord Structure
+Decomposition" (ISMIR 2019, Music X Lab): the lv-chordia 1.1.0 package,
+Copyright (c) 2023 Music X Lab, shipped unchanged in
+app/_vendor/chords/ without its training data. Its license text is
+app/_vendor/chords/lv_chordia-1.1.0.dist-info/licenses/LICENSE, and
+app/_vendor/chords/README.md says what was left out and why. It uses the
+pretty-midi and mido named under Basic Pitch above.
+
 YourMT3+ (inference code), with parts of Hugging Face transformers,
 rotary-embedding-torch and x-transformers
 License: Apache License 2.0 (YourMT3+, transformers),
@@ -340,3 +353,11 @@ StemDeck:
   a stem is transcribed with YourMT3+ and checked against its SHA-256, then
   converted on this computer into a weights-only file (the same tensors,
   checked against their own SHA-256); the downloaded file is then deleted.
+- lv-chordia chord model weights (five checkpoints,
+  joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s0 to _s4, by Junyan
+  Jiang, Ke Chen, Wei Li and Gus Xia, Music X Lab). License: MIT, by the
+  LICENSE file of the authors' repository. Source:
+  https://github.com/music-x-lab/ISMIR2019-Large-Vocabulary-Chord-Recognition
+  at revision 481f4ce703f8822b99f4037e9104ba1760e21ea3. Downloaded unchanged
+  the first time a song's chords are detected, and each checked against its
+  SHA-256.
